@@ -1,0 +1,275 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /*
+   * Brand ramp anchored on #734B89 (hsl 279 29% 42%) — shared with
+   * parking-client so both apps read as one product.
+   */
+  --brand-100: #f1eaf5;
+  --brand-200: #ddcce7;
+  --brand-300: #c2a4d3;
+  --brand-400: #9d72b4;
+  --brand-500: #734b89; /* brand anchor */
+  --brand-600: #5e3d70;
+  --brand-700: #492f57;
+  --brand-800: #35223f;
+  --brand-900: #221629;
+
+  --background: #f7f3f9;
+  --foreground: #1f1823;
+  --card: #ffffff;
+  --card-foreground: #1f1823;
+  --popover: #ffffff;
+  --popover-foreground: #1f1823;
+  --primary: var(--brand-500);
+  --primary-foreground: #faf6fc;
+  --secondary: #efe6f3;
+  --secondary-foreground: #2c2432;
+  --muted: #f2ecf5;
+  --muted-foreground: #6d6274;
+  --accent: var(--brand-100);
+  --accent-foreground: var(--brand-600);
+  --destructive: #c0392b;
+  --destructive-foreground: #fff7f6;
+  --success: #15803d;
+  --success-foreground: #f0fdf4;
+  --success-muted: #dcfce7;
+  --success-muted-foreground: #14532d;
+  --warning: #b45309;
+  --warning-foreground: #fffbeb;
+  --warning-muted: #fef3c7;
+  --warning-muted-foreground: #78350f;
+  --border: #e7dced;
+  --input: #e7dced;
+  --ring: var(--brand-500);
+  --sidebar: #150f1b;
+  --sidebar-foreground: #ece6f0;
+  --sidebar-primary: var(--brand-400);
+  --sidebar-primary-foreground: #faf6fc;
+  --sidebar-accent: rgba(157, 114, 180, 0.16);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: var(--brand-400);
+  --brand-lavender: var(--brand-400);
+  --brand-deep: var(--brand-700);
+  --brand-charcoal: #2d2830;
+  --radius: 0.9rem;
+
+  /* Chart palette — flipped in .dark so series stay legible on dark cards. */
+  --chart-1: var(--brand-500);
+  --chart-revenue: var(--brand-400);
+  --chart-success: #16a34a;
+  --chart-danger: #dc2626;
+  --chart-neutral: #64748b;
+  --chart-info: #0284c7;
+  --chart-axis: #6d6274;
+  --chart-grid: #e7dced;
+  --chart-cursor: rgba(115, 75, 137, 0.1);
+}
+
+.dark {
+  --background: #100b14;
+  --foreground: #efeaf4;
+  --card: #191221;
+  --card-foreground: #efeaf4;
+  --popover: #1d1526;
+  --popover-foreground: #efeaf4;
+  --primary: var(--brand-400);
+  --primary-foreground: #f8f4fb;
+  --secondary: #241a2d;
+  --secondary-foreground: #e6dced;
+  --muted: #1e1626;
+  --muted-foreground: #a293ac;
+  --accent: #2a1f35;
+  --accent-foreground: var(--brand-300);
+  --destructive: #e05a4f;
+  --destructive-foreground: #fff7f6;
+  --success: #4ade80;
+  --success-foreground: #052e16;
+  --success-muted: rgba(74, 222, 128, 0.16);
+  --success-muted-foreground: #bbf7d0;
+  --warning: #fbbf24;
+  --warning-foreground: #422006;
+  --warning-muted: rgba(251, 191, 36, 0.16);
+  --warning-muted-foreground: #fde68a;
+  --border: #2c2338;
+  --input: #2c2338;
+  --ring: var(--brand-400);
+  --sidebar: #0d0912;
+  --sidebar-foreground: #ece6f0;
+  --sidebar-primary: var(--brand-400);
+  --sidebar-primary-foreground: #faf6fc;
+  --sidebar-accent: rgba(157, 114, 180, 0.18);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: var(--brand-400);
+  --brand-lavender: var(--brand-300);
+  --brand-deep: var(--brand-400);
+  --brand-charcoal: #efeaf4;
+
+  /* Lighter, higher-contrast series + axes for the dark surface. */
+  --chart-1: var(--brand-300);
+  --chart-revenue: #c2a4d3;
+  --chart-success: #4ade80;
+  --chart-danger: #f87171;
+  --chart-neutral: #94a3b8;
+  --chart-info: #38bdf8;
+  --chart-axis: #a293ac;
+  --chart-grid: rgba(239, 234, 244, 0.14);
+  --chart-cursor: rgba(239, 234, 244, 0.08);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-muted: var(--success-muted);
+  --color-success-muted-foreground: var(--success-muted-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-muted: var(--warning-muted);
+  --color-warning-muted-foreground: var(--warning-muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --font-sans: var(--font-brand);
+  --font-mono: var(--font-geist-mono);
+  --radius-lg: var(--radius);
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background:
+    radial-gradient(1200px 640px at -8% -12%, rgba(115, 75, 137, 0.2), transparent 58%),
+    radial-gradient(900px 520px at 108% -4%, rgba(157, 114, 180, 0.18), transparent 52%),
+    radial-gradient(700px 420px at 50% 110%, rgba(115, 75, 137, 0.08), transparent 55%),
+    linear-gradient(165deg, #f9f5fb 0%, var(--background) 42%, #f4edf7 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+.dark body,
+html.dark body {
+  background:
+    radial-gradient(1200px 640px at -8% -12%, rgba(115, 75, 137, 0.32), transparent 58%),
+    radial-gradient(900px 520px at 108% -4%, rgba(157, 114, 180, 0.16), transparent 52%),
+    radial-gradient(700px 420px at 50% 110%, rgba(115, 75, 137, 0.14), transparent 55%),
+    linear-gradient(165deg, #16101c 0%, var(--background) 45%, #130d19 100%);
+}
+
+.login-mesh {
+  background:
+    radial-gradient(1000px 560px at 8% 0%, rgba(115, 75, 137, 0.26), transparent 55%),
+    radial-gradient(820px 480px at 92% 8%, rgba(157, 114, 180, 0.22), transparent 50%),
+    radial-gradient(640px 400px at 50% 100%, rgba(115, 75, 137, 0.12), transparent 55%),
+    linear-gradient(160deg, #f7f1fa 0%, #efe6f3 45%, #f9f5fb 100%);
+}
+
+.dark .login-mesh,
+html.dark .login-mesh {
+  background:
+    radial-gradient(1000px 560px at 8% 0%, rgba(115, 75, 137, 0.38), transparent 55%),
+    radial-gradient(820px 480px at 92% 8%, rgba(157, 114, 180, 0.2), transparent 50%),
+    radial-gradient(640px 400px at 50% 100%, rgba(115, 75, 137, 0.18), transparent 55%),
+    linear-gradient(160deg, #0b0810 0%, #17111f 45%, #1d1428 100%);
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.28s ease-out both;
+}
+
+.brand-hero-mesh {
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(115, 75, 137, 0.18), transparent 55%),
+    radial-gradient(90% 70% at 100% 0%, rgba(157, 114, 180, 0.16), transparent 50%),
+    linear-gradient(180deg, #f9f5fb 0%, #ffffff 58%);
+}
+
+.dark .brand-hero-mesh {
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(115, 75, 137, 0.3), transparent 55%),
+    radial-gradient(90% 70% at 100% 0%, rgba(157, 114, 180, 0.18), transparent 50%),
+    linear-gradient(180deg, #1c1426 0%, #17111f 58%);
+}
+
+.brand-wallet-mesh {
+  background:
+    radial-gradient(circle at 85% 10%, rgba(157, 114, 180, 0.3), transparent 42%),
+    radial-gradient(circle at 10% 90%, rgba(115, 75, 137, 0.26), transparent 45%),
+    linear-gradient(160deg, #1c1327 0%, #281c37 55%, #18111e 100%);
+}
+
+.sidebar-shell {
+  background:
+    radial-gradient(420px 260px at 0% 0%, rgba(157, 114, 180, 0.28), transparent 55%),
+    radial-gradient(320px 200px at 100% 100%, rgba(115, 75, 137, 0.16), transparent 50%),
+    linear-gradient(180deg, #1a1224 0%, var(--sidebar) 100%);
+}
+
+.app-shell {
+  background: transparent;
+}
+
+.app-content-mesh {
+  background:
+    radial-gradient(900px 420px at 0% 0%, rgba(115, 75, 137, 0.1), transparent 55%),
+    radial-gradient(700px 360px at 100% 0%, rgba(157, 114, 180, 0.08), transparent 50%),
+    transparent;
+}
+
+.dark .app-content-mesh,
+html.dark .app-content-mesh {
+  background:
+    radial-gradient(900px 420px at 0% 0%, rgba(115, 75, 137, 0.16), transparent 55%),
+    radial-gradient(700px 360px at 100% 0%, rgba(157, 114, 180, 0.1), transparent 50%),
+    transparent;
+}
