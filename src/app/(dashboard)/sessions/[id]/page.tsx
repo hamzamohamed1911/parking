@@ -9,6 +9,7 @@ import {
   ArrowUpRight,
   Download,
   ParkingSquare,
+  Percent,
   RotateCcw,
   Save,
   Square,
@@ -36,14 +37,23 @@ import {
   auditActionMeta,
   auditFieldLabel,
   auditNoteParts,
+  formatDiscountPercent,
   humanizeAuditText,
+  isCashierDiscountEntry,
   isNoteEntry,
+  parseCashierDiscountEntry,
+  sessionCashierDiscount,
+  stripPaymentDiscountSuffix,
 } from "@/lib/session-audit";
 import {
+  sessionPaymentLabel,
+  sessionPaymentVariant,
+  sessionSettlementLabel,
   sessionWaiverLabel,
   sessionWaiverVariant,
 } from "@/lib/session-billing";
 import { vehicleTypeMeta } from "@/lib/vehicle-type";
+import { ParkingJourney } from "@/components/parking-breakdown";
 import type { Paginated, Session, Vehicle } from "@/lib/types";
 import { cn, formatDateTime, formatMoney } from "@/lib/utils";
 
@@ -76,6 +86,13 @@ function sessionTxMeta(type: string) {
         Icon: ParkingSquare,
         iconClass: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
         amountClass: "text-amber-800 dark:text-amber-300",
+      };
+    case "operator_validate":
+      return {
+        label: "Operator validate",
+        Icon: Wallet,
+        iconClass: "bg-violet-500/15 text-violet-800 dark:text-violet-300",
+        amountClass: "text-violet-800 dark:text-violet-300",
       };
     default:
       return {
@@ -385,6 +402,19 @@ export default function SessionDetailPage() {
       session.end_event_detail?.vehicle_type
   );
   const actionBusy = busy || ending || settling || billBusy || unmatching;
+  const cashierDiscount = sessionCashierDiscount(session);
+  const settlementLabel = sessionSettlementLabel(session);
+  const paid = paidLocked;
+  const exemptedStay = session.payment_status === "exempted";
+  const showDiscount = Boolean(cashierDiscount) && paid && !exemptedStay;
+  const paidAmount = paid
+    ? session.fee ?? cashierDiscount?.finalFee ?? "0.00"
+    : null;
+  const showUnpaidFee =
+    !paid &&
+    !exemptedStay &&
+    session.fee != null &&
+    session.fee !== "";
 
   return (
     <div className="space-y-6">
@@ -520,12 +550,151 @@ export default function SessionDetailPage() {
                     : "In progress"}
                 </dd>
               </div>
-              <div>
-                <dt className="text-muted-foreground">Fee</dt>
-                <dd className="mt-0.5 font-medium tabular-nums">
-                  {formatMoney(session.fee)}
-                </dd>
+            </dl>
+
+            {session.parking_breakdown?.segments?.length ? (
+              <div className="rounded-2xl border bg-muted/20 p-4">
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Parking details
+                </p>
+                <ParkingJourney breakdown={session.parking_breakdown} />
               </div>
+            ) : null}
+
+            <div className="space-y-3 rounded-2xl border bg-muted/20 p-4">
+                  {showDiscount && cashierDiscount ? (
+                    <div className="space-y-2">
+                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="text-muted-foreground">
+                          Original fee
+                        </span>
+                        <span className="tabular-nums text-muted-foreground">
+                          {formatMoney(cashierDiscount.originalFee)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="text-muted-foreground">
+                          Discount
+                          {cashierDiscount.percentage
+                            ? ` · ${formatDiscountPercent(cashierDiscount.percentage)}`
+                            : ""}
+                        </span>
+                        <span className="tabular-nums text-muted-foreground">
+                          {cashierDiscount.discountAmount
+                            ? `−${formatMoney(cashierDiscount.discountAmount)}`
+                            : "—"}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-3 border-t pt-2">
+                        <span className="text-sm font-semibold">
+                          Amount paid
+                        </span>
+                        <span className="text-2xl font-bold tabular-nums tracking-tight">
+                          {formatMoney(paidAmount)}
+                        </span>
+                      </div>
+                    </div>
+                  ) : paid ? (
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-sm font-semibold">Amount paid</span>
+                      <span className="text-2xl font-bold tabular-nums tracking-tight">
+                        {formatMoney(paidAmount)}
+                      </span>
+                    </div>
+                  ) : showUnpaidFee ? (
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-sm text-muted-foreground">Fee</span>
+                      <span className="text-lg font-semibold tabular-nums">
+                        {formatMoney(session.fee)}
+                      </span>
+                    </div>
+                  ) : exemptedStay ? (
+                    <p className="text-sm text-muted-foreground">
+                      This stay was waived — it is not a payment or discount.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No payment recorded yet.
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">
+                        Payment status
+                      </span>
+                      <Badge variant={sessionPaymentVariant(session.payment_status)}>
+                        {session.payment_status === "exempted" &&
+                        sessionWaiverLabel(session.waiver_kind)
+                          ? sessionWaiverLabel(session.waiver_kind)
+                          : sessionPaymentLabel(session.payment_status)}
+                      </Badge>
+                    </div>
+                    {paid && settlementLabel ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">
+                          Payment method
+                        </span>
+                        <span className="font-medium">{settlementLabel}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+            {showDiscount && cashierDiscount ? (
+                <div className="space-y-2.5 rounded-2xl border px-4 py-3">
+                  <p className="text-sm font-semibold">Discount applied</p>
+                  <p className="text-sm text-muted-foreground">
+                    {cashierDiscount.percentage
+                      ? `${formatDiscountPercent(cashierDiscount.percentage)} discount`
+                      : "Discount"}
+                  </p>
+                  <dl className="grid gap-1.5 text-sm">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Original fee</dt>
+                      <dd className="tabular-nums">
+                        {formatMoney(cashierDiscount.originalFee)}
+                      </dd>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Discount</dt>
+                      <dd className="tabular-nums">
+                        {cashierDiscount.discountAmount
+                          ? `−${formatMoney(cashierDiscount.discountAmount)}`
+                          : "—"}
+                      </dd>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Final amount</dt>
+                      <dd className="font-semibold tabular-nums">
+                        {formatMoney(cashierDiscount.finalFee || session.fee)}
+                      </dd>
+                    </div>
+                    {cashierDiscount.reason ? (
+                      <div className="flex items-baseline justify-between gap-3 border-t pt-1.5">
+                        <dt className="text-muted-foreground">Reason</dt>
+                        <dd className="max-w-[70%] text-right font-medium" dir="auto">
+                          {cashierDiscount.reason}
+                        </dd>
+                      </div>
+                    ) : null}
+                    {cashierDiscount.actorUsername ? (
+                      <div className="flex items-baseline justify-between gap-3">
+                        <dt className="text-muted-foreground">Applied by</dt>
+                        <dd className="font-medium">{cashierDiscount.actorUsername}</dd>
+                      </div>
+                    ) : null}
+                    <div className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">Date</dt>
+                      <dd className="tabular-nums text-muted-foreground">
+                        {formatDateTime(cashierDiscount.createdAt)}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+            ) : null}
+
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
               {sessionWaiverLabel(session.waiver_kind) ? (
                 <div>
                   <dt className="text-muted-foreground">Waiver</dt>
@@ -719,11 +888,35 @@ export default function SessionDetailPage() {
           ) : (
             <ol className="mt-5 space-y-1">
               {(session.audit_entries || []).map((entry, index, rows) => {
-                const meta = auditActionMeta(entry.action);
-                const noteEntry = isNoteEntry(entry);
+                const discount = parseCashierDiscountEntry(entry);
+                const meta = isCashierDiscountEntry(entry)
+                  ? {
+                      label: "Discount applied",
+                      Icon: Percent,
+                      tone: "bg-muted text-muted-foreground",
+                    }
+                  : entry.field === "payment_status"
+                    ? {
+                        ...auditActionMeta("updated"),
+                        label: "Payment updated",
+                      }
+                    : auditActionMeta(entry.action);
+                const noteEntry = !discount && entry.field !== "payment_status" && isNoteEntry(entry);
+                const paymentNote =
+                  entry.field === "payment_status"
+                    ? stripPaymentDiscountSuffix(
+                        humanizeAuditText(entry.note)
+                      )
+                    : "";
                 const parts = auditNoteParts(entry.note || entry.new_value);
                 const [headline, ...details] = noteEntry ? parts : [];
-                const extraNote = noteEntry ? "" : humanizeAuditText(entry.note);
+                const extraNote = noteEntry
+                  ? ""
+                  : discount
+                    ? ""
+                    : entry.field === "payment_status"
+                      ? ""
+                      : humanizeAuditText(entry.note);
                 return (
                   <li key={entry.id} className="relative flex gap-3 pb-4">
                     {index < rows.length - 1 ? (
@@ -741,6 +934,42 @@ export default function SessionDetailPage() {
                       <meta.Icon className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1 pt-0.5">
+                      {discount ? (
+                        <>
+                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                            <span className="text-sm font-semibold">
+                              Discount applied
+                              {entry.actor_username
+                                ? ` by ${entry.actor_username}`
+                                : ""}
+                            </span>
+                            <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                              {formatDateTime(entry.created_at)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {[
+                              discount.percentage
+                                ? formatDiscountPercent(discount.percentage)
+                                : null,
+                              discount.discountAmount
+                                ? `${formatMoney(discount.discountAmount)} discount`
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                          {discount.reason ? (
+                            <p className="mt-1 text-sm" dir="auto">
+                              <span className="text-muted-foreground">
+                                Reason:{" "}
+                              </span>
+                              {discount.reason}
+                            </p>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
                       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                         <span className="text-sm font-semibold">{meta.label}</span>
                         {entry.actor_username ? (
@@ -757,6 +986,13 @@ export default function SessionDetailPage() {
                         headline ? (
                           <p className="mt-1 text-sm">{headline}</p>
                         ) : null
+                      ) : entry.field === "payment_status" ? (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {paymentNote ||
+                            `${humanizeAuditText(entry.old_value) || "—"} → ${
+                              humanizeAuditText(entry.new_value) || "—"
+                            }`}
+                        </p>
                       ) : (
                         <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm">
                           <span className="text-muted-foreground">
@@ -790,6 +1026,8 @@ export default function SessionDetailPage() {
                           {extraNote}
                         </p>
                       ) : null}
+                        </>
+                      )}
                     </div>
                   </li>
                 );
@@ -842,7 +1080,7 @@ export default function SessionDetailPage() {
                         {formatMoney(tx.amount)}
                       </p>
                       <p className="text-[11px] tabular-nums text-muted-foreground">
-                        Remaining {formatMoney(tx.balance_after)}
+                        Remaining balance {formatMoney(tx.balance_after)}
                       </p>
                     </div>
                   </li>

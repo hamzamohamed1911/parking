@@ -94,3 +94,33 @@ export function sessionShowsPaymentBadge(session: Pick<
   }
   return true;
 }
+
+/** Backend billing_method values only — never invent "Cash". */
+export function sessionBillingMethodLabel(method: string | null | undefined) {
+  switch (method) {
+    case "wallet":
+      return "Wallet";
+    case "card":
+      return "Card";
+    default:
+      return method ? method.replaceAll("_", " ") : "";
+  }
+}
+
+/**
+ * Settlement path actually recorded on the stay.
+ * Operator-wallet desk settlement is `operator_validate`; fleet charge is wallet;
+ * kiosk/PSP is card.
+ */
+export function sessionSettlementLabel(
+  session: Pick<Session, "billing_method" | "transactions">
+) {
+  const txs = session.transactions || [];
+  if (txs.some((tx) => tx.transaction_type === "operator_validate")) {
+    return "Operator validate";
+  }
+  if (txs.some((tx) => tx.transaction_type === "parking_fee")) {
+    return sessionBillingMethodLabel(session.billing_method) || "Wallet";
+  }
+  return sessionBillingMethodLabel(session.billing_method);
+}

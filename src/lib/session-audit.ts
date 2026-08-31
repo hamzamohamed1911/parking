@@ -8,7 +8,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import type { SessionAuditEntry } from "@/lib/types";
+import type { Session, SessionAuditEntry } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 
 const ISO_TIMESTAMP = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?/g;
@@ -85,10 +85,86 @@ export function auditFieldLabel(field: string) {
     billing_exempt: "Billing exemption",
     exit_access_request: "Exit match",
     exit_access_request_undo: "Exit match undone",
+    cashier_discount: "Discount",
   };
   return labels[field] ?? field.replaceAll("_", " ");
 }
 
 export function isNoteEntry(entry: SessionAuditEntry) {
-  return entry.action === "note" || entry.field === "note";
+  return (
+    (entry.action === "note" || entry.field === "note") &&
+    !isCashierDiscountEntry(entry)
+  );
+}
+
+export type CashierDiscountAudit = {
+  percentage: string;
+  discountAmount: string;
+  originalFee: string;
+  finalFee: string;
+  reason: string;
+  actorUsername: string | null;
+  createdAt: string;
+};
+
+const CASHIER_DISCOUNT_NOTE =
+  /^percentage=(\S+)\s+discount_amount=(\S+)\s+original_fee=(\S+)\s+final_fee=(\S+)\s+reason=([\s\S]*)$/;
+
+export function isCashierDiscountEntry(entry: SessionAuditEntry) {
+  return entry.field === "cashier_discount";
+}
+
+export function formatDiscountPercent(value: string | number) {
+  const n = typeof value === "string" ? Number(value) : value;
+  if (!Number.isFinite(n)) return `${value}%`;
+  const rounded = Math.round(n * 100) / 100;
+  const text = Number.isInteger(rounded)
+    ? String(rounded)
+    : String(rounded);
+  return `${text}%`;
+}
+
+export function parseCashierDiscountEntry(
+  entry: SessionAuditEntry
+): CashierDiscountAudit | null {
+  if (!isCashierDiscountEntry(entry)) return null;
+  const match = (entry.note || "").trim().match(CASHIER_DISCOUNT_NOTE);
+  const originalFee = match?.[3] || entry.old_value || "";
+  const finalFee = match?.[4] || entry.new_value || "";
+  if (!originalFee && !finalFee) return null;
+  let discountAmount = match?.[2] || "";
+  if (!discountAmount && originalFee && finalFee) {
+    const orig = Number(originalFee);
+    const fin = Number(finalFee);
+    if (Number.isFinite(orig) && Number.isFinite(fin) && orig >= fin) {
+      discountAmount = (orig - fin).toFixed(2);
+    }
+  }
+  return {
+    percentage: match?.[1] || "",
+    discountAmount,
+    originalFee,
+    finalFee,
+    reason: (match?.[5] || "").trim(),
+    actorUsername: entry.actor_username,
+    createdAt: entry.created_at,
+  };
+}
+
+export function sessionCashierDiscount(
+  session: Pick<Session, "audit_entries">
+): CashierDiscountAudit | null {
+  const entries = session.audit_entries || [];
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    const parsed = parseCashierDiscountEntry(entries[i]);
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
+/** Drop the appended discount fragment when a dedicated discount audit exists. */
+export function stripPaymentDiscountSuffix(note: string) {
+  return note
+    .replace(/\s*·\s*discount\s+\S+%\s+\([^)]*\)\s+reason:\s*[\s\S]*$/i, "")
+    .trim();
 }
