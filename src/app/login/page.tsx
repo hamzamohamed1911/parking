@@ -21,7 +21,10 @@ export default function LoginPage() {
   if (loading || user) {
     return (
       <div className="login-mesh min-h-screen">
-        <Loader fullScreen label={user ? "Opening console…" : "Checking session…"} />
+        <Loader
+          fullScreen
+          label={user ? "Opening console…" : "Checking session…"}
+        />
       </div>
     );
   }
@@ -41,14 +44,17 @@ export default function LoginPage() {
 
   return (
     <div className="login-shell relative flex min-h-screen overflow-hidden bg-background text-foreground">
-      <div aria-hidden className="login-mesh pointer-events-none absolute inset-0" />
+      <div
+        aria-hidden
+        className="login-mesh pointer-events-none absolute inset-0"
+      />
       <div
         aria-hidden
         className="pointer-events-none absolute left-[14%] top-[16%] size-2 rounded-full bg-primary/70"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute left-[19%] top-[12%] size-1.5 rounded-full bg-[var(--brand-lavender)]/80"
+        className="pointer-events-none absolute left-[19%] top-[12%] size-1.5 rounded-full bg-(--brand-lavender)/80"
       />
       <div
         aria-hidden

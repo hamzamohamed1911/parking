@@ -1,6 +1,12 @@
-import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./auth-storage";
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+} from "./auth-storage";
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "https://parkingapi.3utilities.com/";
 
 export class ApiError extends Error {
   status: number;
@@ -21,7 +27,10 @@ type RequestOptions = {
 };
 
 function buildUrl(path: string, query?: RequestOptions["query"]) {
-  const url = new URL(path.replace(/^\//, ""), API_URL.endsWith("/") ? API_URL : `${API_URL}/`);
+  const url = new URL(
+    path.replace(/^\//, ""),
+    API_URL.endsWith("/") ? API_URL : `${API_URL}/`,
+  );
   if (query) {
     Object.entries(query).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== "") {
@@ -50,7 +59,10 @@ async function refreshAccessToken(): Promise<string | null> {
   return data.access;
 }
 
-export async function api<T>(path: string, options: RequestOptions = {}): Promise<T> {
+export async function api<T>(
+  path: string,
+  options: RequestOptions = {},
+): Promise<T> {
   const { method = "GET", body, auth = true, query } = options;
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -94,7 +106,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
 /** Fetch a non-JSON endpoint (e.g. the printable session bill HTML) as text. */
 export async function apiText(
   path: string,
-  options: RequestOptions = {}
+  options: RequestOptions = {},
 ): Promise<string> {
   const { method = "GET", body, auth = true, query } = options;
   const headers: Record<string, string> = { Accept: "text/html, */*" };
@@ -134,7 +146,7 @@ export async function apiText(
 
 export async function apiDownload(
   path: string,
-  options: RequestOptions & { filename?: string } = {}
+  options: RequestOptions & { filename?: string } = {},
 ): Promise<void> {
   const { method = "GET", body, auth = true, query, filename } = options;
   const headers: Record<string, string> = {
@@ -189,7 +201,7 @@ export async function apiDownload(
 export async function apiUpload<T>(
   path: string,
   formData: FormData,
-  options: Omit<RequestOptions, "body"> = {}
+  options: Omit<RequestOptions, "body"> = {},
 ): Promise<T> {
   const { method = "POST", auth = true, query } = options;
   const headers: Record<string, string> = {

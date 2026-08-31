@@ -373,8 +373,12 @@ function printHtml(html: string) {
 
 export default function CashierHubPage() {
   const { canAccessCash, canDecide } = useAuth();
-  const { projectId, projectName, projectQuery, ready: projectReady } =
-    useProjectFilter();
+  const {
+    projectId,
+    projectName,
+    projectQuery,
+    ready: projectReady,
+  } = useProjectFilter();
   const [me, setMe] = useState<CashierMe | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -391,10 +395,12 @@ export default function CashierHubPage() {
   const [gatesLoading, setGatesLoading] = useState(false);
   const [arBusyId, setArBusyId] = useState<number | null>(null);
   const [paymentActionId, setPaymentActionId] = useState<number | null>(null);
-  const [chargeRequest, setChargeRequest] = useState<AccessRequest | null>(null);
-  const [chargeMode, setChargeMode] = useState<"extend_previous" | "new_session">(
-    "new_session"
+  const [chargeRequest, setChargeRequest] = useState<AccessRequest | null>(
+    null,
   );
+  const [chargeMode, setChargeMode] = useState<
+    "extend_previous" | "new_session"
+  >("new_session");
   const [chargeEntryTime, setChargeEntryTime] = useState("");
   const [chargeBusy, setChargeBusy] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<AccessRequest | null>(null);
@@ -412,9 +418,9 @@ export default function CashierHubPage() {
   const [manualBusy, setManualBusy] = useState(false);
 
   const [decisionRow, setDecisionRow] = useState<AccessRequest | null>(null);
-  const [decisionAction, setDecisionAction] = useState<"approve" | "deny" | null>(
-    null
-  );
+  const [decisionAction, setDecisionAction] = useState<
+    "approve" | "deny" | null
+  >(null);
   const [decisionNote, setDecisionNote] = useState("");
   const [receipt, setReceipt] = useState<ReceiptInfo | null>(null);
   const [printBusyId, setPrintBusyId] = useState<number | null>(null);
@@ -436,7 +442,7 @@ export default function CashierHubPage() {
   const [discountReason, setDiscountReason] = useState("");
   const [alertsOn, setAlertsOn] = useState(false);
   const [freshDeviceIds, setFreshDeviceIds] = useState<Set<number>>(
-    () => new Set()
+    () => new Set(),
   );
   const pendingByDeviceRef = useRef<Record<number, AccessRequest>>({});
   const knownPendingIdsRef = useRef<Set<number>>(new Set());
@@ -446,7 +452,7 @@ export default function CashierHubPage() {
   const gatesSectionRef = useRef<HTMLElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const freshTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(
-    new Map()
+    new Map(),
   );
 
   const loadMe = useCallback(async () => {
@@ -455,7 +461,9 @@ export default function CashierHubPage() {
       const data = await api<CashierMe>("cashier/me/");
       setMe(data);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Failed to load cashier hub");
+      toast.error(
+        err instanceof ApiError ? err.message : "Failed to load cashier hub",
+      );
       setMe(null);
     } finally {
       setLoading(false);
@@ -471,7 +479,9 @@ export default function CashierHubPage() {
       });
       setSites(sitesData.results);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Failed to load sites");
+      toast.error(
+        err instanceof ApiError ? err.message : "Failed to load sites",
+      );
       setSites([]);
     } finally {
       setCatalogLoading(false);
@@ -548,13 +558,15 @@ export default function CashierHubPage() {
       });
       const rows = Array.isArray(zonesData)
         ? zonesData
-        : zonesData.results ?? [];
+        : (zonesData.results ?? []);
       const active = rows.filter((z) => z.is_active !== false);
       setZonesCatalog(active);
       // Single-zone sites have nothing to choose — open the desk straight away.
       if (active.length === 1) setPickedZoneId(String(active[0].id));
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Failed to load zones");
+      toast.error(
+        err instanceof ApiError ? err.message : "Failed to load zones",
+      );
       setZonesCatalog([]);
     }
   }, []);
@@ -584,22 +596,19 @@ export default function CashierHubPage() {
 
   const activeZoneIds = useMemo(
     () => activeZones.map((z) => z.id),
-    [activeZones]
+    [activeZones],
   );
   // Live ref so stream callbacks can reject rows outside the desk's zone even
   // if a mid-deploy backend (or an old Redis payload) forwards one.
   const activeZoneIdsRef = useRef<number[]>([]);
   activeZoneIdsRef.current = activeZoneIds;
 
-  const rowInActiveZone = useCallback(
-    (row: { zone_id?: number | null }) => {
-      const zoneId = row.zone_id;
-      if (zoneId == null) return true; // Older payloads without a zone: trust the server.
-      const zones = activeZoneIdsRef.current;
-      return zones.length === 0 || zones.includes(Number(zoneId));
-    },
-    []
-  );
+  const rowInActiveZone = useCallback((row: { zone_id?: number | null }) => {
+    const zoneId = row.zone_id;
+    if (zoneId == null) return true; // Older payloads without a zone: trust the server.
+    const zones = activeZoneIdsRef.current;
+    return zones.length === 0 || zones.includes(Number(zoneId));
+  }, []);
 
   const clearFresh = useCallback((deviceId: number) => {
     const existing = freshTimersRef.current.get(deviceId);
@@ -629,7 +638,7 @@ export default function CashierHubPage() {
       pendingByDeviceRef.current = next;
       setPendingByDevice(next);
     },
-    [rowInActiveZone]
+    [rowInActiveZone],
   );
 
   const upsertPendingRow = useCallback(
@@ -660,7 +669,7 @@ export default function CashierHubPage() {
         document.title = `(${count}) Vehicle waiting`;
       }
     },
-    [alertsOn, markFresh, playAlert, rowInActiveZone]
+    [alertsOn, markFresh, playAlert, rowInActiveZone],
   );
 
   const removePendingRow = useCallback(
@@ -689,7 +698,7 @@ export default function CashierHubPage() {
       });
       for (const deviceId of cleared) clearFresh(deviceId);
     },
-    [clearFresh]
+    [clearFresh],
   );
 
   const loadPending = useCallback(async () => {
@@ -702,8 +711,8 @@ export default function CashierHubPage() {
         activeZoneIds.map((zoneId) =>
           api<Paginated<AccessRequest>>("access-requests/", {
             query: { zone: zoneId, status: "pending", page_size: 100 },
-          })
-        )
+          }),
+        ),
       );
       applyPendingRows(arPages.flatMap((page) => page.results));
     } catch {
@@ -723,8 +732,8 @@ export default function CashierHubPage() {
         activeZoneIds.map((zoneId) =>
           api<Paginated<Device>>("devices/", {
             query: { zone: zoneId, page_size: 100 },
-          })
-        )
+          }),
+        ),
       );
       const deviceMap = new Map<number, Device>();
       for (const page of devicePages) {
@@ -733,7 +742,9 @@ export default function CashierHubPage() {
       setDevices([...deviceMap.values()].sort((a, b) => a.id - b.id));
       await loadPending();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Failed to load zone gates");
+      toast.error(
+        err instanceof ApiError ? err.message : "Failed to load zone gates",
+      );
       setDevices([]);
       applyPendingRows([]);
     } finally {
@@ -748,13 +759,16 @@ export default function CashierHubPage() {
     }
     setReceiptsLoading(true);
     try {
-      const data = await api<{ results: CashierReceipt[] }>("cashier/receipts/", {
-        query: { zone: activeZoneIds[0], limit: 7 },
-      });
+      const data = await api<{ results: CashierReceipt[] }>(
+        "cashier/receipts/",
+        {
+          query: { zone: activeZoneIds[0], limit: 7 },
+        },
+      );
       setRecentReceipts(data.results);
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "Failed to load receipts"
+        err instanceof ApiError ? err.message : "Failed to load receipts",
       );
       setRecentReceipts([]);
     } finally {
@@ -775,12 +789,14 @@ export default function CashierHubPage() {
     try {
       const data = await api<{ results: ActiveSession[] }>(
         "cashier/active-sessions/",
-        { query: { zone: activeZoneIds[0], limit: 25 } }
+        { query: { zone: activeZoneIds[0], limit: 25 } },
       );
       setActiveSessions(data.results);
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "Failed to load active sessions"
+        err instanceof ApiError
+          ? err.message
+          : "Failed to load active sessions",
       );
       setActiveSessions([]);
     } finally {
@@ -882,12 +898,13 @@ export default function CashierHubPage() {
       devices
         .filter((device) => device.type === "exit" && device.enabled !== false)
         .sort((a, b) => gateLabel(a).localeCompare(gateLabel(b))),
-    [devices]
+    [devices],
   );
 
   const selectedGateDevice = useMemo(
-    () => exitGates.find((device) => String(device.id) === selectedGateId) ?? null,
-    [exitGates, selectedGateId]
+    () =>
+      exitGates.find((device) => String(device.id) === selectedGateId) ?? null,
+    [exitGates, selectedGateId],
   );
 
   const deskZoneId = activeZoneIds[0] ?? null;
@@ -898,12 +915,16 @@ export default function CashierHubPage() {
       return;
     }
     setSelectedGateId((current) => {
-      if (current && exitGates.some((device) => String(device.id) === current)) {
+      if (
+        current &&
+        exitGates.some((device) => String(device.id) === current)
+      ) {
         return current;
       }
       let stored = "";
       try {
-        stored = window.localStorage.getItem(cashGateStorageKey(deskZoneId)) || "";
+        stored =
+          window.localStorage.getItem(cashGateStorageKey(deskZoneId)) || "";
       } catch {
         /* ignore */
       }
@@ -971,7 +992,7 @@ export default function CashierHubPage() {
         }
         if (event === "access_request.pending") {
           upsertPendingRowRef.current(
-            JSON.parse(raw) as AccessRequest & { device_id?: number }
+            JSON.parse(raw) as AccessRequest & { device_id?: number },
           );
           setStreamStatus("live");
           return;
@@ -982,7 +1003,7 @@ export default function CashierHubPage() {
               id: number;
               device_id?: number;
               device?: number;
-            }
+            },
           );
           setStreamStatus("live");
         }
@@ -1031,7 +1052,10 @@ export default function CashierHubPage() {
           scheduleResync(500);
         }
       } catch (err) {
-        if (closed || (err instanceof DOMException && err.name === "AbortError")) {
+        if (
+          closed ||
+          (err instanceof DOMException && err.name === "AbortError")
+        ) {
           return;
         }
         setStreamStatus("offline");
@@ -1085,7 +1109,7 @@ export default function CashierHubPage() {
       try {
         const data = await api<{ query: string; results: CashierSearchHit[] }>(
           "cashier/search/",
-          { query: { q, limit: 8, zone: activeZoneIds[0] } }
+          { query: { q, limit: 8, zone: activeZoneIds[0] } },
         );
         setHits(data.results);
         setSearchedQuery(data.query || plateKey(q));
@@ -1102,7 +1126,7 @@ export default function CashierHubPage() {
         setSearching(false);
       }
     },
-    [activeZoneIds]
+    [activeZoneIds],
   );
 
   async function onSearch(e?: FormEvent) {
@@ -1128,7 +1152,9 @@ export default function CashierHubPage() {
     } catch (err) {
       // Settling already succeeded — a missing bill must not read as a failure.
       toast.message(
-        err instanceof ApiError ? `Bill unavailable · ${err.message}` : "Bill unavailable"
+        err instanceof ApiError
+          ? `Bill unavailable · ${err.message}`
+          : "Bill unavailable",
       );
     } finally {
       setPrintBusyId(null);
@@ -1162,7 +1188,7 @@ export default function CashierHubPage() {
         body,
       });
       toast.success(
-        `${hit.plate} paid · leave within ${hit.grace_minutes || "grace"} min`
+        `${hit.plate} paid · leave within ${hit.grace_minutes || "grace"} min`,
       );
       setValidateTarget(null);
       setReceipt({
@@ -1210,7 +1236,7 @@ export default function CashierHubPage() {
         },
       });
       toast.success(
-        decisionAction === "approve" ? "Approved · gate pulsed" : "Denied"
+        decisionAction === "approve" ? "Approved · gate pulsed" : "Denied",
       );
       closeDecision();
       void loadPending();
@@ -1229,7 +1255,7 @@ export default function CashierHubPage() {
         {
           method: "POST",
           body: { note: "Validated payment via cashier hub" },
-        }
+        },
       );
       toast.success("Payment validated · gate opened");
       setValidateTarget(null);
@@ -1237,7 +1263,8 @@ export default function CashierHubPage() {
         setReceipt({
           sessionId: updated.linked_session_id,
           plate: updated.plate,
-          amountLabel: settleAmountLabel(row) ?? settleAmountLabel(updated) ?? "",
+          amountLabel:
+            settleAmountLabel(row) ?? settleAmountLabel(updated) ?? "",
         });
       }
       void loadPending();
@@ -1258,7 +1285,9 @@ export default function CashierHubPage() {
       toast.success("Match undone");
       void loadPending();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Could not undo match");
+      toast.error(
+        err instanceof ApiError ? err.message : "Could not undo match",
+      );
     } finally {
       setArBusyId(null);
     }
@@ -1270,7 +1299,7 @@ export default function CashierHubPage() {
       toast.message(
         row.open_payment_intent
           ? "A bill is already on the kiosk — cancel or update it instead"
-          : "Use Resend bill for this unpaid open session"
+          : "Use Resend bill for this unpaid open session",
       );
       return;
     }
@@ -1284,7 +1313,7 @@ export default function CashierHubPage() {
     try {
       const updated = await api<AccessRequest>(
         `access-requests/${row.id}/cancel-bill/`,
-        { method: "POST" }
+        { method: "POST" },
       );
       upsertPendingRow(updated);
       setCancelTarget(null);
@@ -1307,7 +1336,7 @@ export default function CashierHubPage() {
       });
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "Could not cancel kiosk bill"
+        err instanceof ApiError ? err.message : "Could not cancel kiosk bill",
       );
     } finally {
       setPaymentActionId(null);
@@ -1323,19 +1352,19 @@ export default function CashierHubPage() {
     try {
       const updated = await api<AccessRequest>(
         `access-requests/${accessRequestId}/send-bill/`,
-        { method: "POST" }
+        { method: "POST" },
       );
       upsertPendingRow(updated);
       const bill = updated.open_payment_intent;
       toast.success(
         bill
           ? `Bill on kiosk · ${bill.amount} ${bill.currency}`
-          : `Bill sent to ${row.gate_label ?? "kiosk"}`
+          : `Bill sent to ${row.gate_label ?? "kiosk"}`,
       );
       void loadActiveSessions();
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "Could not send the bill"
+        err instanceof ApiError ? err.message : "Could not send the bill",
       );
     } finally {
       setBillSessionId(null);
@@ -1347,7 +1376,7 @@ export default function CashierHubPage() {
     try {
       const updated = await api<AccessRequest>(
         `access-requests/${row.id}/send-bill/`,
-        { method: "POST" }
+        { method: "POST" },
       );
       upsertPendingRow(updated);
       const bill = updated.open_payment_intent;
@@ -1359,11 +1388,11 @@ export default function CashierHubPage() {
           : "Bill sent to kiosk",
         drifted && prev
           ? { description: `Was ${prev}, now ${bill.amount}` }
-          : undefined
+          : undefined,
       );
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "Could not resend the bill"
+        err instanceof ApiError ? err.message : "Could not resend the bill",
       );
     } finally {
       setPaymentActionId(null);
@@ -1375,18 +1404,18 @@ export default function CashierHubPage() {
     try {
       const updated = await api<AccessRequest>(
         `access-requests/${row.id}/refresh-bill/`,
-        { method: "POST" }
+        { method: "POST" },
       );
       upsertPendingRow(updated);
       const bill = updated.open_payment_intent;
       toast.success(
         bill
           ? `Amount updated · ${bill.amount} ${bill.currency}`
-          : "Bill amount updated"
+          : "Bill amount updated",
       );
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "Could not update bill amount"
+        err instanceof ApiError ? err.message : "Could not update bill amount",
       );
     } finally {
       setPaymentActionId(null);
@@ -1417,7 +1446,7 @@ export default function CashierHubPage() {
       void loadPending();
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "Could not create kiosk bill"
+        err instanceof ApiError ? err.message : "Could not create kiosk bill",
       );
     } finally {
       setChargeBusy(false);
@@ -1453,7 +1482,9 @@ export default function CashierHubPage() {
       setManualNote("");
       void loadPending();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Manual entry failed");
+      toast.error(
+        err instanceof ApiError ? err.message : "Manual entry failed",
+      );
     } finally {
       setManualBusy(false);
     }
@@ -1468,12 +1499,12 @@ export default function CashierHubPage() {
       if (!gateFilterReady) return false;
       return accessRequestDeviceId(row) === selectedGateNumeric;
     },
-    [gateFilterReady, selectedGateNumeric]
+    [gateFilterReady, selectedGateNumeric],
   );
 
   const pendingOnSelectedGate = useMemo(
     () => Object.values(pendingByDevice).filter(requestOnSelectedGate),
-    [pendingByDevice, requestOnSelectedGate]
+    [pendingByDevice, requestOnSelectedGate],
   );
 
   const zonesWithDevices = useMemo(() => {
@@ -1501,7 +1532,7 @@ export default function CashierHubPage() {
   const hubReady = Boolean(me && activeZoneIds.length > 0);
   const waitingCount = useMemo(
     () => zonesWithDevices.reduce((total, zone) => total + zone.waiting, 0),
-    [zonesWithDevices]
+    [zonesWithDevices],
   );
 
   // Exits the cashier can settle with cash right now — the desk's hot path.
@@ -1523,7 +1554,7 @@ export default function CashierHubPage() {
   // Whatever is left only needs a plain approve/deny at the gate.
   const needsAttentionCount = Math.max(
     0,
-    waitingCount - settleQueue.length - billQueue.length
+    waitingCount - settleQueue.length - billQueue.length,
   );
 
   /** Live gate queue indexed both ways so any desk row can find its request. */
@@ -1541,7 +1572,7 @@ export default function CashierHubPage() {
     (row: DeskRow): AccessRequest | undefined =>
       pendingByPlate[plateKey(row.plate)] ??
       (row.access_request_id ? pendingById[row.access_request_id] : undefined),
-    [pendingByPlate, pendingById]
+    [pendingByPlate, pendingById],
   );
 
   /**
@@ -1561,7 +1592,7 @@ export default function CashierHubPage() {
         hit: { ...row, at_gate: Boolean(gateRequest) },
       });
     },
-    [gateRequestFor]
+    [gateRequestFor],
   );
 
   /**
@@ -1571,11 +1602,11 @@ export default function CashierHubPage() {
    */
   const sortedActiveSessions = useMemo(() => {
     const handled = new Set(
-      [...settleQueue, ...billQueue].map((row) => row.id)
+      [...settleQueue, ...billQueue].map((row) => row.id),
     );
     return activeSessions
       .filter(
-        (row) => !row.access_request_id || !handled.has(row.access_request_id)
+        (row) => !row.access_request_id || !handled.has(row.access_request_id),
       )
       .filter((row) => {
         const gateRequest =
@@ -1591,14 +1622,21 @@ export default function CashierHubPage() {
         if (a.at_gate !== b.at_gate) return a.at_gate ? -1 : 1;
         return a.start_time.localeCompare(b.start_time);
       });
-  }, [activeSessions, settleQueue, billQueue, pendingByPlate, pendingById, requestOnSelectedGate]);
+  }, [
+    activeSessions,
+    settleQueue,
+    billQueue,
+    pendingByPlate,
+    pendingById,
+    requestOnSelectedGate,
+  ]);
 
   const normalizedQuery = useMemo(() => plateKey(query), [query]);
 
   const localMatches = useMemo(() => {
     if (!normalizedQuery) return sortedActiveSessions;
     return sortedActiveSessions.filter((row) =>
-      plateKey(row.plate).includes(normalizedQuery)
+      plateKey(row.plate).includes(normalizedQuery),
     );
   }, [sortedActiveSessions, normalizedQuery]);
 
@@ -1618,7 +1656,9 @@ export default function CashierHubPage() {
     return rows.filter((row) => {
       const gateRequest =
         pendingByPlate[plateKey(row.plate)] ??
-        (row.access_request_id ? pendingById[row.access_request_id] : undefined);
+        (row.access_request_id
+          ? pendingById[row.access_request_id]
+          : undefined);
       if (gateRequest) return requestOnSelectedGate(gateRequest);
       if (row.at_gate || row.access_request_id) return false;
       return true;
@@ -1643,7 +1683,7 @@ export default function CashierHubPage() {
   const activeOwedTotal = useMemo(() => {
     const total = sortedActiveSessions.reduce(
       (sum, row) => sum + (Number(row.fee) || 0),
-      0
+      0,
     );
     return total > 0 ? formatMoney(total, tariff?.currency ?? "SAR") : null;
   }, [sortedActiveSessions, tariff?.currency]);
@@ -1655,10 +1695,7 @@ export default function CashierHubPage() {
 
   useEffect(() => {
     if (!usingLookup || normalizedQuery.length < 2) return;
-    const timer = window.setTimeout(
-      () => void runLookup(normalizedQuery),
-      300
-    );
+    const timer = window.setTimeout(() => void runLookup(normalizedQuery), 300);
     return () => window.clearTimeout(timer);
   }, [usingLookup, normalizedQuery, runLookup]);
 
@@ -1671,11 +1708,11 @@ export default function CashierHubPage() {
 
   const dialogOpen = Boolean(
     validateTarget ||
-      receipt ||
-      decisionRow ||
-      cancelTarget ||
-      chargeRequest ||
-      manualDevice
+    receipt ||
+    decisionRow ||
+    cancelTarget ||
+    chargeRequest ||
+    manualDevice,
   );
 
   const sessionDiscountBlocked =
@@ -1683,12 +1720,9 @@ export default function CashierHubPage() {
     (() => {
       const preview = cashierDiscountPreview(
         validateTarget.hit.fee,
-        discountPercentage
+        discountPercentage,
       );
-      return (
-        preview.invalid ||
-        (preview.hasDiscount && !discountReason.trim())
-      );
+      return preview.invalid || (preview.hasDiscount && !discountReason.trim());
     })();
 
   // Plate entry is the desk's primary job — keep it one keystroke away.
@@ -1747,7 +1781,7 @@ export default function CashierHubPage() {
         }
         const row = visibleDeskRows.find(
           (candidate) =>
-            candidate.can_validate && !candidate.within_paid_exit_grace
+            candidate.can_validate && !candidate.within_paid_exit_grace,
         );
         if (row) {
           event.preventDefault();
@@ -1812,8 +1846,11 @@ export default function CashierHubPage() {
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[2rem] border bg-card shadow-sm">
-        <div aria-hidden className="pointer-events-none absolute inset-0 brand-hero-mesh" />
+      <section className="relative overflow-hidden rounded-4xl border bg-card shadow-sm">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 brand-hero-mesh"
+        />
         <div className="relative space-y-5 p-6 sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -1871,71 +1908,69 @@ export default function CashierHubPage() {
                 <p className="text-xs font-medium text-muted-foreground">
                   Project workspace
                 </p>
-                <Badge variant="outline">
-                  {projectName || "All projects"}
-                </Badge>
+                <Badge variant="outline">{projectName || "All projects"}</Badge>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Site
-                </label>
-                <Select
-                  value={pickedSiteId || undefined}
-                  onValueChange={setPickedSiteId}
-                  disabled={catalogLoading}
-                >
-                  <SelectTrigger className="h-11 rounded-xl bg-background/90">
-                    <SelectValue
-                      placeholder={
-                        catalogLoading ? "Loading sites…" : "Select site"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sites.map((site) => (
-                      <SelectItem key={site.id} value={String(site.id)}>
-                        {site.name}
-                        {site.project_name ? ` · ${site.project_name}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Zone
-                </label>
-                <Select
-                  value={pickedZoneId || undefined}
-                  onValueChange={(value) => {
-                    setPickedZoneId(value);
-                    setSelectedGateId("");
-                    setHits([]);
-                    setSearchedQuery("");
-                  }}
-                  disabled={!pickedSiteId || zonesCatalog.length === 0}
-                >
-                  <SelectTrigger className="h-11 rounded-xl bg-background/90">
-                    <SelectValue
-                      placeholder={
-                        !pickedSiteId
-                          ? "Select a site first"
-                          : zonesCatalog.length === 0
-                            ? "No zones on this site"
-                            : "Select zone"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {zonesCatalog.map((zone) => (
-                      <SelectItem key={zone.id} value={String(zone.id)}>
-                        {zone.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Site
+                  </label>
+                  <Select
+                    value={pickedSiteId || undefined}
+                    onValueChange={setPickedSiteId}
+                    disabled={catalogLoading}
+                  >
+                    <SelectTrigger className="h-11 rounded-xl bg-background/90">
+                      <SelectValue
+                        placeholder={
+                          catalogLoading ? "Loading sites…" : "Select site"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sites.map((site) => (
+                        <SelectItem key={site.id} value={String(site.id)}>
+                          {site.name}
+                          {site.project_name ? ` · ${site.project_name}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Zone
+                  </label>
+                  <Select
+                    value={pickedZoneId || undefined}
+                    onValueChange={(value) => {
+                      setPickedZoneId(value);
+                      setSelectedGateId("");
+                      setHits([]);
+                      setSearchedQuery("");
+                    }}
+                    disabled={!pickedSiteId || zonesCatalog.length === 0}
+                  >
+                    <SelectTrigger className="h-11 rounded-xl bg-background/90">
+                      <SelectValue
+                        placeholder={
+                          !pickedSiteId
+                            ? "Select a site first"
+                            : zonesCatalog.length === 0
+                              ? "No zones on this site"
+                              : "Select zone"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {zonesCatalog.map((zone) => (
+                        <SelectItem key={zone.id} value={String(zone.id)}>
+                          {zone.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           ) : null}
@@ -1971,7 +2006,7 @@ export default function CashierHubPage() {
 
           {tariff ? (
             <dl className="flex flex-wrap items-stretch gap-2">
-              <div className="min-w-[7.5rem] flex-1 rounded-xl border bg-background/70 px-3 py-2">
+              <div className="min-w-30 flex-1 rounded-xl border bg-background/70 px-3 py-2">
                 <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Zone
                 </dt>
@@ -1979,7 +2014,7 @@ export default function CashierHubPage() {
                   {tariff.zone_name}
                 </dd>
               </div>
-              <div className="min-w-[7.5rem] flex-1 rounded-xl border bg-background/70 px-3 py-2">
+              <div className="min-w-30 flex-1 rounded-xl border bg-background/70 px-3 py-2">
                 <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Rate / hour
                 </dt>
@@ -1992,7 +2027,7 @@ export default function CashierHubPage() {
               {tariff.pricing_configured &&
               tariff.additional_fee &&
               Number(tariff.additional_fee) > 0 ? (
-                <div className="min-w-[7.5rem] flex-1 rounded-xl border bg-background/70 px-3 py-2">
+                <div className="min-w-30 flex-1 rounded-xl border bg-background/70 px-3 py-2">
                   <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                     Extra fee
                   </dt>
@@ -2002,7 +2037,7 @@ export default function CashierHubPage() {
                 </div>
               ) : null}
               {tariff.pricing_configured ? (
-                <div className="min-w-[7.5rem] flex-1 rounded-xl border bg-background/70 px-3 py-2">
+                <div className="min-w-30 flex-1 rounded-xl border bg-background/70 px-3 py-2">
                   <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                     First hour
                   </dt>
@@ -2011,7 +2046,7 @@ export default function CashierHubPage() {
                   </dd>
                 </div>
               ) : null}
-              <div className="min-w-[7.5rem] flex-1 rounded-xl border bg-background/70 px-3 py-2">
+              <div className="min-w-30 flex-1 rounded-xl border bg-background/70 px-3 py-2">
                 <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Exit grace
                 </dt>
@@ -2034,7 +2069,7 @@ export default function CashierHubPage() {
               placeholder="Filter by plate…"
               className={cn(
                 "h-14 rounded-2xl border-0 bg-background/90 pl-12 text-lg font-semibold tracking-wide shadow-sm focus-visible:ring-2",
-                query ? "pr-40" : "pr-28"
+                query ? "pr-40" : "pr-28",
               )}
               autoFocus
               autoComplete="off"
@@ -2135,7 +2170,9 @@ export default function CashierHubPage() {
                       size="lg"
                       className="h-12 gap-2 px-5 text-base"
                       disabled={busy}
-                      onClick={() => setValidateTarget({ kind: "request", row })}
+                      onClick={() =>
+                        setValidateTarget({ kind: "request", row })
+                      }
                     >
                       {busy ? (
                         <Loader2 className="size-5 animate-spin" />
@@ -2158,7 +2195,9 @@ export default function CashierHubPage() {
       {billQueue.length > 0 ? (
         <section className="space-y-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold tracking-tight">Kiosk bills</h2>
+            <h2 className="text-lg font-semibold tracking-tight">
+              Kiosk bills
+            </h2>
             <Badge variant="outline" className="tabular-nums">
               {billQueue.length}
             </Badge>
@@ -2296,7 +2335,9 @@ export default function CashierHubPage() {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold tracking-tight">
-                {normalizedQuery ? `Matches for ${normalizedQuery}` : "Cars owing money"}
+                {normalizedQuery
+                  ? `Matches for ${normalizedQuery}`
+                  : "Cars owing money"}
               </h2>
               {deskRows.length > 0 ? (
                 <Badge variant="outline" className="tabular-nums">
@@ -2365,7 +2406,9 @@ export default function CashierHubPage() {
                           {row.plate}
                         </p>
                         {row.match && !row.match.exact ? (
-                          <Badge variant={row.match.weak ? "warning" : "outline"}>
+                          <Badge
+                            variant={row.match.weak ? "warning" : "outline"}
+                          >
                             {row.match.percent}% match
                             {row.match.weak ? " · weak" : ""}
                           </Badge>
@@ -2375,7 +2418,10 @@ export default function CashierHubPage() {
                         ) : null}
                         {atGate ? (
                           <Badge variant="warning">
-                            At {row.gate_label ?? gateRequest?.device_label ?? "gate"}
+                            At{" "}
+                            {row.gate_label ??
+                              gateRequest?.device_label ??
+                              "gate"}
                           </Badge>
                         ) : null}
                       </div>
@@ -2405,14 +2451,18 @@ export default function CashierHubPage() {
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Button asChild variant="ghost" size="sm">
-                          <Link href={`/sessions/${row.session_id}`}>Session</Link>
+                          <Link href={`/sessions/${row.session_id}`}>
+                            Session
+                          </Link>
                         </Button>
                         {row.within_paid_exit_grace ? (
                           <Button
                             variant="outline"
                             size="sm"
                             disabled={printBusyId === row.session_id}
-                            onClick={() => void printSessionBill(row.session_id)}
+                            onClick={() =>
+                              void printSessionBill(row.session_id)
+                            }
                           >
                             {printBusyId === row.session_id ? (
                               <Loader2 className="size-4 animate-spin" />
@@ -2482,7 +2532,9 @@ export default function CashierHubPage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold tracking-tight">Zone gates</h2>
+              <h2 className="text-lg font-semibold tracking-tight">
+                Zone gates
+              </h2>
               {waitingCount > 0 ? (
                 <Badge variant="warning" className="tabular-nums">
                   {waitingCount} waiting
@@ -2493,9 +2545,10 @@ export default function CashierHubPage() {
                   "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium",
                   streamStatus === "live" &&
                     "bg-success-muted text-success-muted-foreground",
-                  streamStatus === "offline" && "bg-destructive/15 text-destructive",
+                  streamStatus === "offline" &&
+                    "bg-destructive/15 text-destructive",
                   (streamStatus === "connecting" || streamStatus === "idle") &&
-                    "bg-muted text-muted-foreground"
+                    "bg-muted text-muted-foreground",
                 )}
               >
                 <Radio className="size-3" />
@@ -2600,70 +2653,76 @@ export default function CashierHubPage() {
                   <div
                     className={cn(
                       "grid gap-4 p-4",
-                      entries.length > 0 && exits.length > 0 && "lg:grid-cols-2"
+                      entries.length > 0 &&
+                        exits.length > 0 &&
+                        "lg:grid-cols-2",
                     )}
                   >
                     {entries.length > 0 ? (
-                    <GateColumn
-                      title="Entry gates"
-                      hint="Cars waiting to come in"
-                      tone="entry"
-                      devices={entries}
-                      pendingByDevice={pendingByDevice}
-                      freshDeviceIds={freshDeviceIds}
-                      canDecide={canDecide}
-                      onApprove={(row) => openDecision(row, "approve")}
-                      onDeny={(row) => openDecision(row, "deny")}
-                      onManual={
-                        canDecide
-                          ? (device) => {
-                              setManualDevice(device);
-                              setManualPlate("");
-                              setManualNote("");
-                            }
-                          : undefined
-                      }
-                      onValidatePayment={(row) => setValidateTarget({ kind: "request", row })}
-                      onUnmatch={(row) => void unmatchAr(row)}
-                      onChargeAtKiosk={openChargeAtKiosk}
-                      onCancelBill={(row) => setCancelTarget(row)}
-                      onSendBill={(row) => void sendBill(row)}
-                      onRefreshBill={(row) => void refreshBill(row)}
-                      paymentActionId={paymentActionId}
-                      unmatchBusy={arBusyId != null}
-                      validateBusy={arBusyId != null}
-                    />
+                      <GateColumn
+                        title="Entry gates"
+                        hint="Cars waiting to come in"
+                        tone="entry"
+                        devices={entries}
+                        pendingByDevice={pendingByDevice}
+                        freshDeviceIds={freshDeviceIds}
+                        canDecide={canDecide}
+                        onApprove={(row) => openDecision(row, "approve")}
+                        onDeny={(row) => openDecision(row, "deny")}
+                        onManual={
+                          canDecide
+                            ? (device) => {
+                                setManualDevice(device);
+                                setManualPlate("");
+                                setManualNote("");
+                              }
+                            : undefined
+                        }
+                        onValidatePayment={(row) =>
+                          setValidateTarget({ kind: "request", row })
+                        }
+                        onUnmatch={(row) => void unmatchAr(row)}
+                        onChargeAtKiosk={openChargeAtKiosk}
+                        onCancelBill={(row) => setCancelTarget(row)}
+                        onSendBill={(row) => void sendBill(row)}
+                        onRefreshBill={(row) => void refreshBill(row)}
+                        paymentActionId={paymentActionId}
+                        unmatchBusy={arBusyId != null}
+                        validateBusy={arBusyId != null}
+                      />
                     ) : null}
                     {exits.length > 0 ? (
-                    <GateColumn
-                      title="Exit gate"
-                      hint="Cars waiting to leave"
-                      tone="exit"
-                      devices={exits}
-                      pendingByDevice={pendingByDevice}
-                      freshDeviceIds={freshDeviceIds}
-                      canDecide={canDecide}
-                      onApprove={(row) => openDecision(row, "approve")}
-                      onDeny={(row) => openDecision(row, "deny")}
-                      onManual={
-                        canDecide
-                          ? (device) => {
-                              setManualDevice(device);
-                              setManualPlate("");
-                              setManualNote("");
-                            }
-                          : undefined
-                      }
-                      onValidatePayment={(row) => setValidateTarget({ kind: "request", row })}
-                      onUnmatch={(row) => void unmatchAr(row)}
-                      onChargeAtKiosk={openChargeAtKiosk}
-                      onCancelBill={(row) => setCancelTarget(row)}
-                      onSendBill={(row) => void sendBill(row)}
-                      onRefreshBill={(row) => void refreshBill(row)}
-                      paymentActionId={paymentActionId}
-                      unmatchBusy={arBusyId != null}
-                      validateBusy={arBusyId != null}
-                    />
+                      <GateColumn
+                        title="Exit gate"
+                        hint="Cars waiting to leave"
+                        tone="exit"
+                        devices={exits}
+                        pendingByDevice={pendingByDevice}
+                        freshDeviceIds={freshDeviceIds}
+                        canDecide={canDecide}
+                        onApprove={(row) => openDecision(row, "approve")}
+                        onDeny={(row) => openDecision(row, "deny")}
+                        onManual={
+                          canDecide
+                            ? (device) => {
+                                setManualDevice(device);
+                                setManualPlate("");
+                                setManualNote("");
+                              }
+                            : undefined
+                        }
+                        onValidatePayment={(row) =>
+                          setValidateTarget({ kind: "request", row })
+                        }
+                        onUnmatch={(row) => void unmatchAr(row)}
+                        onChargeAtKiosk={openChargeAtKiosk}
+                        onCancelBill={(row) => setCancelTarget(row)}
+                        onSendBill={(row) => void sendBill(row)}
+                        onRefreshBill={(row) => void refreshBill(row)}
+                        paymentActionId={paymentActionId}
+                        unmatchBusy={arBusyId != null}
+                        validateBusy={arBusyId != null}
+                      />
                     ) : null}
                   </div>
                 )}
@@ -2720,7 +2779,7 @@ export default function CashierHubPage() {
                   key={row.session_id}
                   className={cn(
                     "flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5",
-                    isNewest && "bg-muted/30"
+                    isNewest && "bg-muted/30",
                   )}
                 >
                   <div className="min-w-0 flex-1 space-y-0.5">
@@ -2728,7 +2787,10 @@ export default function CashierHubPage() {
                       <p className="font-mono text-base font-semibold tracking-wider">
                         {row.plate}
                       </p>
-                      <Badge variant="outline" className="font-normal capitalize">
+                      <Badge
+                        variant="outline"
+                        className="font-normal capitalize"
+                      >
                         {row.payment_method}
                       </Badge>
                       {isNewest ? (
@@ -2790,7 +2852,9 @@ export default function CashierHubPage() {
             <DialogDescription>
               {decisionRow?.site_name}
               {decisionRow?.zone_name ? ` · ${decisionRow.zone_name}` : ""}
-              {decisionRow?.device_label ? ` · ${decisionRow.device_label}` : ""}
+              {decisionRow?.device_label
+                ? ` · ${decisionRow.device_label}`
+                : ""}
               {decisionRow?.action ? ` · ${decisionRow.action}` : ""}
             </DialogDescription>
           </DialogHeader>
@@ -2828,9 +2892,7 @@ export default function CashierHubPage() {
               <Button
                 type="button"
                 variant={decisionAction === "deny" ? "destructive" : "default"}
-                disabled={
-                  arBusyId === decisionRow?.id || !decisionNote.trim()
-                }
+                disabled={arBusyId === decisionRow?.id || !decisionNote.trim()}
                 onClick={() => void submitDecision()}
               >
                 {arBusyId === decisionRow?.id
@@ -2935,7 +2997,7 @@ export default function CashierHubPage() {
                   ? "cursor-not-allowed opacity-55"
                   : chargeMode === "extend_previous"
                     ? "border-primary bg-primary/5 ring-1 ring-primary"
-                    : "hover:bg-accent"
+                    : "hover:bg-accent",
               )}
             >
               <span
@@ -2944,7 +3006,7 @@ export default function CashierHubPage() {
                   chargeMode === "extend_previous" &&
                     chargeRequest?.can_extend_previous
                     ? "border-primary bg-primary"
-                    : "border-muted-foreground/40"
+                    : "border-muted-foreground/40",
                 )}
               />
               <span className="min-w-0">
@@ -2965,7 +3027,7 @@ export default function CashierHubPage() {
                 "flex w-full gap-3 rounded-lg border p-3 text-left transition-colors",
                 chargeMode === "new_session"
                   ? "border-primary bg-primary/5 ring-1 ring-primary"
-                  : "hover:bg-accent"
+                  : "hover:bg-accent",
               )}
             >
               <span
@@ -2973,7 +3035,7 @@ export default function CashierHubPage() {
                   "mt-0.5 size-4 shrink-0 rounded-full border-2",
                   chargeMode === "new_session"
                     ? "border-primary bg-primary"
-                    : "border-muted-foreground/40"
+                    : "border-muted-foreground/40",
                 )}
               />
               <span className="min-w-0">
@@ -3110,7 +3172,7 @@ export default function CashierHubPage() {
               if (validateTarget?.kind === "session") {
                 const preview = cashierDiscountPreview(
                   validateTarget.hit.fee,
-                  discountPercentage
+                  discountPercentage,
                 );
                 const reasonRequired =
                   preview.hasDiscount && !discountReason.trim();
@@ -3149,7 +3211,9 @@ export default function CashierHubPage() {
                           placeholder="0"
                           value={discountPercentage}
                           disabled={validateBusyId != null}
-                          onChange={(e) => setDiscountPercentage(e.target.value)}
+                          onChange={(e) =>
+                            setDiscountPercentage(e.target.value)
+                          }
                           className="pr-8"
                         />
                         <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
@@ -3197,7 +3261,9 @@ export default function CashierHubPage() {
                           </span>
                         </div>
                         <div className="flex items-baseline justify-between">
-                          <span className="text-muted-foreground">Discount</span>
+                          <span className="text-muted-foreground">
+                            Discount
+                          </span>
                           <span className="tabular-nums">
                             −{formatMoney(preview.discountAmount, currency)}
                           </span>
@@ -3239,8 +3305,8 @@ export default function CashierHubPage() {
             })()}
             <p className="rounded-lg border border-warning/30 bg-warning-muted/50 px-3 py-2.5 text-xs leading-relaxed">
               The fee is charged to <strong>your operator wallet</strong>, which
-              may go negative until you settle up. Only confirm once you have the
-              cash in hand.
+              may go negative until you settle up. Only confirm once you have
+              the cash in hand.
             </p>
             <div className="flex justify-end gap-2">
               <Button
