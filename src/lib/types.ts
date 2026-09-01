@@ -235,6 +235,29 @@ export type Event = {
   created_at: string;
 };
 
+export type ParkingBreakdownSegment = {
+  zone_id: number | null;
+  zone_name: string;
+  session_id: number;
+  start_time: string;
+  end_time: string | null;
+  duration_seconds: number;
+  duration_minutes: number;
+  duration_label: string;
+  /** Billed slice from session_slice_fee; omitted when it would not sum to Amount due. */
+  amount?: string | null;
+  currency?: string;
+  amount_label?: string;
+};
+
+export type ParkingBreakdown = {
+  segments: ParkingBreakdownSegment[];
+  total_duration_seconds: number;
+  total_duration_minutes: number;
+  total_duration_label: string;
+  currency?: string;
+};
+
 export type Session = {
   id: number;
   plate: string;
@@ -281,6 +304,8 @@ export type Session = {
   transactions?: Transaction[];
   /** Control-room access requests tied to this stay (entry/exit/settlement). */
   access_requests?: SessionAccessRequest[];
+  /** Occupancy by zone; computed at read time. Does not change the fee. */
+  parking_breakdown?: ParkingBreakdown;
 };
 
 /** Compact AR row nested on session detail. */

@@ -15,6 +15,12 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  formatDiscountPercent,
+  humanizeAuditText,
+  parseCashierDiscountEntry,
+  stripPaymentDiscountSuffix,
+} from "@/lib/session-audit";
 import type { Session } from "@/lib/types";
 import { cn, formatDateTime, formatMoney } from "@/lib/utils";
 
@@ -24,6 +30,8 @@ export type StayTimelineItem = {
   kind: "ar" | "gate" | "edit" | "wallet" | "status";
   title: string;
   detail?: string;
+  /** Extra readable lines (discount recap, etc.) — not an operator note. */
+  lines?: string[];
   /** Operator's own note, surfaced on its own line. */
   note?: string;
   /** When set on an AR card, shows the request→decision gap. */
@@ -187,6 +195,42 @@ export function buildStayTimeline(session: Session): StayTimelineItem[] {
   for (const entry of session.audit_entries || []) {
     const isExitMatch = entry.field === "exit_access_request";
     const isExitUnmatch = entry.field === "exit_access_request_undo";
+    const discount = parseCashierDiscountEntry(entry);
+    if (discount) {
+      const pct = discount.percentage
+        ? formatDiscountPercent(discount.percentage)
+        : "";
+      items.push({
+        id: `audit-${entry.id}`,
+        at: entry.created_at,
+        kind: "edit",
+        title: "Discount applied",
+        detail: [
+          pct ? `${pct} discount` : null,
+          discount.discountAmount
+            ? `−${formatMoney(discount.discountAmount)}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        lines: [
+          discount.originalFee
+            ? `Original fee: ${formatMoney(discount.originalFee)}`
+            : "",
+          discount.finalFee
+            ? `Final amount: ${formatMoney(discount.finalFee)}`
+            : "",
+          discount.reason ? `Reason: ${discount.reason}` : "",
+        ].filter(Boolean),
+        badge: entry.actor_username || undefined,
+        badgeVariant: "secondary",
+      });
+      continue;
+    }
+    const paymentNote =
+      entry.field === "payment_status"
+        ? stripPaymentDiscountSuffix(humanizeAuditText(entry.note))
+        : "";
     items.push({
       id: `audit-${entry.id}`,
       at: entry.created_at,
@@ -195,7 +239,9 @@ export function buildStayTimeline(session: Session): StayTimelineItem[] {
         ? "Exit OCR matched"
         : isExitUnmatch
           ? "Exit match undone"
-          : entry.action.replaceAll("_", " "),
+          : entry.field === "payment_status"
+            ? "Payment updated"
+            : entry.action.replaceAll("_", " "),
       detail: isExitMatch
         ? `OCR ${entry.old_value || "—"} → session ${entry.new_value || "—"}${
             entry.note ? ` · ${entry.note}` : ""
@@ -204,9 +250,12 @@ export function buildStayTimeline(session: Session): StayTimelineItem[] {
           ? `Restored OCR ${entry.new_value || "—"} from session ${
               entry.old_value || "—"
             }${entry.note ? ` · ${entry.note}` : ""}`
-        : entry.field === "note" || entry.action === "note"
-          ? entry.note || entry.new_value
-          : `${entry.field}: ${entry.old_value || "—"} → ${entry.new_value || "—"}`,
+        : entry.field === "payment_status"
+          ? paymentNote ||
+            `${entry.old_value || "—"} → ${entry.new_value || "—"}`
+          : entry.field === "note" || entry.action === "note"
+            ? entry.note || entry.new_value
+            : `${entry.field}: ${entry.old_value || "—"} → ${entry.new_value || "—"}`,
       badge: entry.actor_username || undefined,
       badgeVariant: "secondary",
     });
@@ -338,6 +387,14 @@ function TimelineRow({
         <p className={cn("mt-1 text-sm text-muted-foreground", item.muted && "opacity-90")}>
           {item.detail}
         </p>
+      ) : null}
+
+      {item.lines && item.lines.length > 0 ? (
+        <ul className="mt-1.5 space-y-0.5 text-sm text-muted-foreground">
+          {item.lines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
       ) : null}
 
       {item.note ? (
