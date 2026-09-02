@@ -18,6 +18,78 @@ export function isExitRequest(row: { action?: string }): boolean {
   return !row.action || row.action === "exit";
 }
 
+/** AccessRequest.device is the gate PK. Prefer device_id from SSE payloads. */
+export function accessRequestDeviceId(row: {
+  device?: number;
+  device_id?: number;
+}): number | null {
+  const id = Number(row.device_id ?? row.device);
+  return Number.isFinite(id) ? id : null;
+}
+
+type OwingDeskKey = {
+  plate: string;
+  session_id?: number;
+  access_request_id?: number | null;
+  at_gate?: boolean;
+};
+
+/**
+ * Exit device PK for an owing-desk row, from the pending AccessRequest list
+ * (not zone/site). Prefers access_request_id, then plate, then session match.
+ */
+export function pendingExitDeviceIdForOwingRow(
+  row: OwingDeskKey,
+  pendingRequests: Array<
+    AccessRequest & { device_id?: number; linked_session_id?: number | null }
+  >
+): number | null {
+  const exits = pendingRequests.filter(isExitRequest);
+  if (row.access_request_id != null) {
+    const byId = exits.find((ar) => ar.id === row.access_request_id);
+    const id = byId ? accessRequestDeviceId(byId) : null;
+    if (id != null) return id;
+  }
+  const key = plateKey(row.plate);
+  const byPlate = exits.find((ar) => plateKey(ar.plate) === key);
+  if (byPlate) {
+    const id = accessRequestDeviceId(byPlate);
+    if (id != null) return id;
+  }
+  if (row.session_id != null) {
+    const bySession = exits.find(
+      (ar) =>
+        ar.exit_match_session_id === row.session_id ||
+        ar.linked_session_id === row.session_id
+    );
+    if (bySession) return accessRequestDeviceId(bySession);
+  }
+  return null;
+}
+
+/**
+ * Cars owing money: keep rows whose pending exit AR is this gate's device PK.
+ * Rows with no pending exit AR stay visible (ordinary open stays).
+ */
+export function owingRowVisibleOnSelectedExit(
+  row: OwingDeskKey,
+  pendingRequests: Array<
+    AccessRequest & { device_id?: number; linked_session_id?: number | null }
+  >,
+  selectedExitDeviceId: number | null
+): boolean {
+  const deviceId = pendingExitDeviceIdForOwingRow(row, pendingRequests);
+  if (deviceId != null) {
+    return (
+      selectedExitDeviceId != null &&
+      Number.isFinite(selectedExitDeviceId) &&
+      deviceId === selectedExitDeviceId
+    );
+  }
+  if (row.at_gate || row.access_request_id) return false;
+  return true;
+}
+
 export function rowFromActiveSession(row: ActiveSession): DeskRow {
   return {
     session_id: row.session_id,
