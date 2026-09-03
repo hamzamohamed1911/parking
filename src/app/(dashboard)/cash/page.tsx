@@ -1712,7 +1712,6 @@ export default function CashierHubPage() {
         ? hits.map(rowFromSearchHit)
         : []
       : localMatches.map(rowFromActiveSession);
-<<<<<<< HEAD
     return rows.filter((row) => {
       const gateRequest =
         pendingByPlate[plateKey(row.plate)] ??
@@ -3451,4 +3450,5 @@ export default function CashierHubPage() {
     </div>
   );
 }
+
 
