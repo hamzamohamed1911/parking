@@ -42,7 +42,7 @@ export function pendingExitDeviceIdForOwingRow(
   row: OwingDeskKey,
   pendingRequests: Array<
     AccessRequest & { device_id?: number; linked_session_id?: number | null }
-  >
+  >,
 ): number | null {
   const exits = pendingRequests.filter(isExitRequest);
   if (row.access_request_id != null) {
@@ -60,7 +60,7 @@ export function pendingExitDeviceIdForOwingRow(
     const bySession = exits.find(
       (ar) =>
         ar.exit_match_session_id === row.session_id ||
-        ar.linked_session_id === row.session_id
+        ar.linked_session_id === row.session_id,
     );
     if (bySession) return accessRequestDeviceId(bySession);
   }
@@ -76,24 +76,9 @@ export function owingRowVisibleOnSelectedExit(
   pendingRequests: Array<
     AccessRequest & { device_id?: number; linked_session_id?: number | null }
   >,
-  selectedExitDeviceId: number | null
+  selectedExitDeviceId: number | null,
 ): boolean {
-<<<<<<< HEAD
-  const deviceId = pendingExitDeviceIdForOwingRow(row, pendingRequests);
-  if (deviceId != null) {
-    return (
-      selectedExitDeviceId != null &&
-      Number.isFinite(selectedExitDeviceId) &&
-      deviceId === selectedExitDeviceId
-    );
-  }
-  if (row.at_gate || row.access_request_id) return false;
-  return true;
-=======
-  if (
-    selectedExitDeviceId == null ||
-    !Number.isFinite(selectedExitDeviceId)
-  ) {
+  if (selectedExitDeviceId == null || !Number.isFinite(selectedExitDeviceId)) {
     return false;
   }
 
@@ -104,7 +89,6 @@ export function owingRowVisibleOnSelectedExit(
   }
 
   return Number(deviceId) === Number(selectedExitDeviceId);
->>>>>>> 839f54e3d818cef22e920f28353211d0243a9be9
 }
 
 export function rowFromActiveSession(row: ActiveSession): DeskRow {
