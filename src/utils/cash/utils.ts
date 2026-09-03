@@ -79,13 +79,13 @@ export function owingRowVisibleOnSelectedExit(
   selectedExitDeviceId: number | null,
 ): boolean {
   if (selectedExitDeviceId == null || !Number.isFinite(selectedExitDeviceId)) {
-    return false;
+    return true;
   }
 
   const deviceId = pendingExitDeviceIdForOwingRow(row, pendingRequests);
 
   if (deviceId == null) {
-    return false;
+    return true;
   }
 
   return Number(deviceId) === Number(selectedExitDeviceId);

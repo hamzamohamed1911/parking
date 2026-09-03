@@ -91,25 +91,21 @@ export function CashHeaderSection(props: CashHeaderSectionProps) {
             </div>
             <p className="mt-1 max-w-xl text-sm text-muted-foreground">
               Take cash before a car reaches the gate and it can exit within the
-              grace window. Waiting exits open the gate immediately. Type a plate
-              to narrow the list — it falls back to every on-site stay when
-              nothing here owes money.
+              grace window. Waiting exits open the gate immediately. Type a
+              plate to narrow the list — it falls back to every on-site stay
+              when nothing here owes money.
             </p>
           </div>
-          {me?.has_assignment && me.zones.length === 1 ? (
+          {me?.has_assignment && me.zones[0] ? (
             <Badge variant="outline" className="font-normal">
-              {me.zones[0].site_name} · {me.zones[0].name}
+              {me.zones.find((z) => String(z.id) === pickedZoneId)?.site_name ??
+                me.zones[0].site_name}{" "}
+              ·{" "}
+              {me.zones.find((z) => String(z.id) === pickedZoneId)?.name ??
+                me.zones[0].name}
             </Badge>
           ) : null}
         </div>
-
-        {me?.has_assignment && me.zones.length > 1 ? (
-          <AssignedZonePicker
-            zones={me.zones}
-            pickedZoneId={pickedZoneId}
-            onZoneChange={onZoneChange}
-          />
-        ) : null}
 
         {me?.can_pick_zone ? (
           <ProjectWorkspacePicker
@@ -275,9 +271,7 @@ function ProjectWorkspacePicker({
           >
             <SelectTrigger className="h-11 rounded-xl bg-background/90">
               <SelectValue
-                placeholder={
-                  catalogLoading ? "Loading sites…" : "Select site"
-                }
+                placeholder={catalogLoading ? "Loading sites…" : "Select site"}
               />
             </SelectTrigger>
             <SelectContent>
