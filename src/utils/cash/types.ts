@@ -1,4 +1,4 @@
-import type { AccessRequest, Device } from "@/lib/types";
+import type { AccessRequest, Device, ParkingBreakdown } from "@/lib/types";
 
 export type CashierZone = {
   id: number;
@@ -37,6 +37,7 @@ export type CashierSearchHit = {
   within_paid_exit_grace: boolean;
   grace_minutes: number;
   can_validate: boolean;
+  parking_breakdown?: ParkingBreakdown;
 };
 
 /** What the desk needs to take cash for a stay, whether it came from plate search or the active list. */
@@ -66,6 +67,7 @@ export type ActiveSession = {
   access_request_id: number | null;
   at_gate: boolean;
   gate_label: string | null;
+  parking_breakdown?: ParkingBreakdown;
 };
 
 export type CashierReceipt = {
@@ -118,6 +120,8 @@ export type DeskRow = {
   plate: string;
   fee: string;
   grace_minutes: number;
+  site_id: number;
+  zone_id: number | null;
   zone_name: string | null;
   start_time: string;
   at_gate: boolean;
@@ -127,6 +131,7 @@ export type DeskRow = {
   within_paid_exit_grace: boolean;
   paid_exit_until: string | null;
   match: { percent: number; exact: boolean; weak: boolean } | null;
+  parking_breakdown?: ParkingBreakdown;
 };
 
 export type ValidateTarget =

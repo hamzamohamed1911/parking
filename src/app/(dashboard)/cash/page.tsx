@@ -71,7 +71,9 @@ import type {
   Zone,
 } from "@/lib/types";
 import { cn, formatDateTime, formatMoney } from "@/lib/utils";
-import { owingRowVisibleOnSelectedExit } from "@/utils/cash/utils";
+import {
+  owingRowMatchesSelectedExitGate,
+} from "@/utils/cash/utils";
 
 type CashierZone = {
   id: number;
@@ -195,6 +197,8 @@ type DeskRow = {
   plate: string;
   fee: string;
   grace_minutes: number;
+  site_id: number;
+  zone_id: number | null;
   zone_name: string | null;
   start_time: string;
   at_gate: boolean;
@@ -288,6 +292,8 @@ function rowFromActiveSession(row: ActiveSession): DeskRow {
     plate: row.plate,
     fee: row.fee,
     grace_minutes: row.grace_minutes,
+    site_id: row.site_id,
+    zone_id: row.zone_id,
     zone_name: row.zone_name,
     start_time: row.start_time,
     at_gate: row.at_gate,
@@ -308,6 +314,8 @@ function rowFromSearchHit(hit: CashierSearchHit): DeskRow {
     plate: hit.plate,
     fee: hit.fee,
     grace_minutes: hit.grace_minutes,
+    site_id: hit.site_id,
+    zone_id: hit.zone_id,
     zone_name: hit.zone_name,
     start_time: hit.start_time,
     at_gate: false,
@@ -808,14 +816,28 @@ export default function CashierHubPage() {
   }, [loadReceipts]);
 
   const loadActiveSessions = useCallback(async () => {
-    if (!activeZoneIds.length) {
+    const zoneIds = new Set(activeZoneIds);
+    const gateId = selectedGateIdRef.current;
+    if (gateId) {
+      const gate = devices.find(
+        (device) =>
+          String(device.id) === gateId &&
+          device.type === "exit" &&
+          device.enabled !== false,
+      );
+      if (gate?.zone != null && Number.isFinite(Number(gate.zone))) {
+        zoneIds.add(Number(gate.zone));
+      }
+    }
+    const fetchZoneIds = [...zoneIds];
+    if (!fetchZoneIds.length) {
       setActiveSessions([]);
       return;
     }
     setActiveLoading(true);
     try {
       const pages = await Promise.all(
-        activeZoneIds.map((zoneId) =>
+        fetchZoneIds.map((zoneId) =>
           api<{ results: ActiveSession[] }>("cashier/active-sessions/", {
             query: { zone: zoneId, limit: 25 },
           }),
@@ -836,11 +858,11 @@ export default function CashierHubPage() {
     } finally {
       setActiveLoading(false);
     }
-  }, [activeZoneIds]);
+  }, [activeZoneIds, devices]);
 
   useEffect(() => {
     void loadActiveSessions();
-  }, [loadActiveSessions]);
+  }, [loadActiveSessions, selectedGateId]);
 
   // Fees grow with every hour parked, so the desk must never quote a stale
   // amount. Re-price the list on a slow timer instead of on every render.
@@ -926,7 +948,7 @@ export default function CashierHubPage() {
     [exitGates, selectedGateId],
   );
 
-  const deskZoneId = activeZoneIds[0] ?? null;
+  const deskZoneId = selectedGateDevice?.zone ?? activeZoneIds[0] ?? null;
 
   useEffect(() => {
     if (!deskZoneId) {
@@ -1631,23 +1653,12 @@ export default function CashierHubPage() {
    * they are no longer stripped just because they also sit in settle/bill.
    */
   const sortedActiveSessions = useMemo(() => {
-    const handled = new Set(
-      [...settleQueue, ...billQueue].map((row) => row.id),
-    );
-
     return activeSessions
       .filter((row) =>
-        owingRowVisibleOnSelectedExit(
+        owingRowMatchesSelectedExitGate(
           row,
+          gateFilterReady ? selectedGateDevice : null,
           pendingRows,
-          gateFilterReady ? selectedGateNumeric : null,
-        ),
-      )
-      .filter((row) =>
-        owingRowVisibleOnSelectedExit(
-          row,
-          pendingRows,
-          gateFilterReady ? selectedGateNumeric : null,
         ),
       )
       .sort((a, b) => {
@@ -1656,14 +1667,9 @@ export default function CashierHubPage() {
       });
   }, [
     activeSessions,
-    settleQueue,
-    billQueue,
-    pendingByPlate,
-    pendingById,
-    requestOnSelectedGate,
     pendingRows,
     gateFilterReady,
-    selectedGateNumeric,
+    selectedGateDevice,
   ]);
 
   const normalizedQuery = useMemo(() => plateKey(query), [query]);
@@ -1689,10 +1695,10 @@ export default function CashierHubPage() {
         : []
       : localMatches.map(rowFromActiveSession);
     return rows.filter((row) =>
-      owingRowVisibleOnSelectedExit(
+      owingRowMatchesSelectedExitGate(
         row,
+        gateFilterReady ? selectedGateDevice : null,
         pendingRows,
-        gateFilterReady ? selectedGateNumeric : null,
       ),
     );
   }, [
@@ -1702,7 +1708,7 @@ export default function CashierHubPage() {
     localMatches,
     pendingRows,
     gateFilterReady,
-    selectedGateNumeric,
+    selectedGateDevice,
   ]);
 
   const lookupPending = usingLookup && (searching || !lookupSettled);
@@ -2360,7 +2366,7 @@ export default function CashierHubPage() {
             <p className="text-sm text-muted-foreground">
               {usingLookup
                 ? "No car here owes money under that plate, so this is every open stay in the zone — including free and already-paid ones."
-                : "Open stays in this zone with a fee due — take cash at the desk, or send the bill to the kiosk for cars already at a gate."}
+                : "Open stays for this exit gate with a fee due — take cash at the desk, or send the bill to the kiosk for cars already at a gate."}
               {!normalizedQuery && activeOwedTotal ? (
                 <>
                   {" "}
@@ -2398,8 +2404,10 @@ export default function CashierHubPage() {
         ) : deskRows.length === 0 ? (
           <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
             {normalizedQuery
-              ? "No car on site matches that plate in this zone."
-              : "Nothing to collect — every open stay is still free, already paid, or queued at a gate above."}
+              ? "No car on site matches that plate for this exit gate."
+              : gateFilterReady
+                ? "Nothing to collect at this exit gate — every open stay is still free, already paid, or queued above."
+                : "Select an exit gate to see cars owing money at that lane."}
           </div>
         ) : (
           <>

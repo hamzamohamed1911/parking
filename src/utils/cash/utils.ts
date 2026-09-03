@@ -1,4 +1,4 @@
-import type { AccessRequest, Device } from "@/lib/types";
+import type { AccessRequest, Device, ParkingBreakdown } from "@/lib/types";
 
 import type {
   ActiveSession,
@@ -30,13 +30,22 @@ export function accessRequestDeviceId(row: {
 type OwingDeskKey = {
   plate: string;
   session_id?: number;
+  site_id?: number;
   access_request_id?: number | null;
   at_gate?: boolean;
+  zone_id?: number | null;
+  parking_breakdown?: ParkingBreakdown;
 };
+
+type SelectedExitGate = Pick<Device, "id" | "zone" | "site">;
 
 /**
  * Exit device PK for an owing-desk row, from the pending AccessRequest list
  * (not zone/site). Prefers access_request_id, then plate, then session match.
+ *
+ * Rows not queued at a gate (no access_request_id / at_gate) must not inherit
+ * another lane's pending exit AR for the same plate — that was hiding cars
+ * the active-sessions API still lists as owing money.
  */
 export function pendingExitDeviceIdForOwingRow(
   row: OwingDeskKey,
@@ -50,6 +59,14 @@ export function pendingExitDeviceIdForOwingRow(
     const id = byId ? accessRequestDeviceId(byId) : null;
     if (id != null) return id;
   }
+
+  // Only match plate/session when the row is explicitly queued at a gate.
+  // Otherwise an unrelated pending AR for the same plate would hide the stay
+  // from every exit lane.
+  if (!row.at_gate) {
+    return null;
+  }
+
   const key = plateKey(row.plate);
   const byPlate = exits.find((ar) => plateKey(ar.plate) === key);
   if (byPlate) {
@@ -67,28 +84,106 @@ export function pendingExitDeviceIdForOwingRow(
   return null;
 }
 
+/** Zone ids that decide which exit lane an open stay belongs to. */
+export function stayZoneIdsForOwingFilter(row: OwingDeskKey): number[] {
+  const zones = new Set<number>();
+  const segments = row.parking_breakdown?.segments ?? [];
+  for (const segment of segments.filter((s) => s.end_time == null)) {
+    if (segment.zone_id != null) zones.add(Number(segment.zone_id));
+  }
+  if (zones.size === 0) {
+    for (const segment of segments) {
+      if (segment.zone_id != null) zones.add(Number(segment.zone_id));
+    }
+  }
+  if (row.zone_id != null) zones.add(Number(row.zone_id));
+  return [...zones];
+}
+
 /**
- * Cars owing money: keep rows whose pending exit AR is this gate's device PK.
- * Rows with no pending exit AR stay visible (ordinary open stays).
+ * Cars owing money for the selected exit gate only.
+ *
+ * - Same site as the exit device.
+ * - Queued at a gate → that exit device PK must match.
+ * - Otherwise → stay zone(s) must include the exit device's zone.
  */
-export function owingRowVisibleOnSelectedExit(
+export function owingRowMatchesSelectedExitGate(
   row: OwingDeskKey,
+  selectedExit: SelectedExitGate | null | undefined,
   pendingRequests: Array<
     AccessRequest & { device_id?: number; linked_session_id?: number | null }
   >,
-  selectedExitDeviceId: number | null,
 ): boolean {
-  if (selectedExitDeviceId == null || !Number.isFinite(selectedExitDeviceId)) {
+  if (selectedExit == null) return false;
+
+  if (
+    row.site_id != null &&
+    Number(row.site_id) !== Number(selectedExit.site)
+  ) {
+    return false;
+  }
+
+  const gateDeviceId = Number(selectedExit.id);
+  const gateZoneId = Number(selectedExit.zone);
+  const pendingDeviceId = pendingExitDeviceIdForOwingRow(row, pendingRequests);
+
+  if (
+    pendingDeviceId != null &&
+    Number(pendingDeviceId) !== gateDeviceId
+  ) {
+    return false;
+  }
+
+  if (row.at_gate || row.access_request_id != null || pendingDeviceId != null) {
+    return Number(pendingDeviceId) === gateDeviceId;
+  }
+
+  const stayZones = stayZoneIdsForOwingFilter(row);
+  if (!stayZones.length) return false;
+  return stayZones.some((zoneId) => Number(zoneId) === gateZoneId);
+}
+
+function segmentZoneMatchesGate(
+  segmentZoneId: number | null | undefined,
+  gateZoneId: number,
+): boolean {
+  return segmentZoneId != null && Number(segmentZoneId) === gateZoneId;
+}
+
+/**
+ * Open stay belongs on this exit gate's zone.
+ *
+ * When a journey has nested segments, the car's **current** open segment decides
+ * which exit lane it belongs to — not the original entry zone alone.
+ */
+export function sessionVisibleForSelectedExitGate(
+  row: OwingDeskKey,
+  selectedExitGateZoneId: number | null | undefined,
+): boolean {
+  if (
+    selectedExitGateZoneId == null ||
+    !Number.isFinite(Number(selectedExitGateZoneId))
+  ) {
     return true;
   }
 
-  const deviceId = pendingExitDeviceIdForOwingRow(row, pendingRequests);
+  const gateZone = Number(selectedExitGateZoneId);
+  const segments = row.parking_breakdown?.segments ?? [];
+  const openSegments = segments.filter((segment) => segment.end_time == null);
 
-  if (deviceId == null) {
-    return true;
+  if (openSegments.length > 0) {
+    return openSegments.some((segment) =>
+      segmentZoneMatchesGate(segment.zone_id, gateZone),
+    );
   }
 
-  return Number(deviceId) === Number(selectedExitDeviceId);
+  if (segments.length > 0) {
+    return segments.some((segment) =>
+      segmentZoneMatchesGate(segment.zone_id, gateZone),
+    );
+  }
+
+  return row.zone_id != null && Number(row.zone_id) === gateZone;
 }
 
 export function rowFromActiveSession(row: ActiveSession): DeskRow {
@@ -97,6 +192,8 @@ export function rowFromActiveSession(row: ActiveSession): DeskRow {
     plate: row.plate,
     fee: row.fee,
     grace_minutes: row.grace_minutes,
+    site_id: row.site_id,
+    zone_id: row.zone_id,
     zone_name: row.zone_name,
     start_time: row.start_time,
     at_gate: row.at_gate,
@@ -106,6 +203,7 @@ export function rowFromActiveSession(row: ActiveSession): DeskRow {
     within_paid_exit_grace: false,
     paid_exit_until: null,
     match: null,
+    parking_breakdown: row.parking_breakdown,
   };
 }
 
@@ -116,6 +214,8 @@ export function rowFromSearchHit(hit: CashierSearchHit): DeskRow {
     plate: hit.plate,
     fee: hit.fee,
     grace_minutes: hit.grace_minutes,
+    site_id: hit.site_id,
+    zone_id: hit.zone_id,
     zone_name: hit.zone_name,
     start_time: hit.start_time,
     at_gate: false,
@@ -129,6 +229,7 @@ export function rowFromSearchHit(hit: CashierSearchHit): DeskRow {
       exact: hit.exact,
       weak: hit.weak,
     },
+    parking_breakdown: hit.parking_breakdown,
   };
 }
 
