@@ -579,9 +579,7 @@ export default function CashierHubPage() {
   const activeZones = useMemo((): CashierZone[] => {
     if (!me) return [];
     if (me.has_assignment) {
-      if (!pickedZoneId) return [];
-      const zone = me.zones.find((z) => String(z.id) === pickedZoneId);
-      return zone ? [zone] : [];
+      return me.zones;
     }
     if (!me.can_pick_zone || !pickedZoneId) return [];
     const zone = zonesCatalog.find((z) => String(z.id) === pickedZoneId);
@@ -777,13 +775,24 @@ export default function CashierHubPage() {
     }
     setReceiptsLoading(true);
     try {
-      const data = await api<{ results: CashierReceipt[] }>(
-        "cashier/receipts/",
-        {
-          query: { zone: activeZoneIds[0], limit: 7 },
-        },
+      const pages = await Promise.all(
+        activeZoneIds.map((zoneId) =>
+          api<{ results: CashierReceipt[] }>("cashier/receipts/", {
+            query: { zone: zoneId, limit: 7 },
+          }),
+        ),
       );
-      setRecentReceipts(data.results);
+      const byId = new Map<number, CashierReceipt>();
+      for (const page of pages) {
+        for (const row of page.results) byId.set(row.session_id, row);
+      }
+      setRecentReceipts(
+        [...byId.values()]
+          .sort((a, b) =>
+            (b.paid_at || "").localeCompare(a.paid_at || ""),
+          )
+          .slice(0, 7),
+      );
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : "Failed to load receipts",
@@ -805,11 +814,18 @@ export default function CashierHubPage() {
     }
     setActiveLoading(true);
     try {
-      const data = await api<{ results: ActiveSession[] }>(
-        "cashier/active-sessions/",
-        { query: { zone: activeZoneIds[0], limit: 25 } },
+      const pages = await Promise.all(
+        activeZoneIds.map((zoneId) =>
+          api<{ results: ActiveSession[] }>("cashier/active-sessions/", {
+            query: { zone: zoneId, limit: 25 },
+          }),
+        ),
       );
-      setActiveSessions(data.results);
+      const byId = new Map<number, ActiveSession>();
+      for (const page of pages) {
+        for (const row of page.results) byId.set(row.session_id, row);
+      }
+      setActiveSessions([...byId.values()]);
     } catch (err) {
       toast.error(
         err instanceof ApiError
@@ -837,7 +853,7 @@ export default function CashierHubPage() {
   }, [loadActiveSessions]);
 
   const loadTariff = useCallback(async () => {
-    if (!activeZoneIds.length) {
+    if (activeZoneIds.length !== 1) {
       setTariff(null);
       return;
     }
@@ -860,21 +876,6 @@ export default function CashierHubPage() {
     if (!canAccessCash) return;
     void loadMe();
   }, [canAccessCash, loadMe]);
-
-  // Assigned cashiers stay in their Cashier zones — auto-pick when only one.
-  useEffect(() => {
-    if (!me?.has_assignment) return;
-    if (me.zones.length === 1) {
-      setPickedZoneId(String(me.zones[0].id));
-      return;
-    }
-    if (
-      me.zones.length > 1 &&
-      !me.zones.some((z) => String(z.id) === pickedZoneId)
-    ) {
-      setPickedZoneId(String(me.zones[0].id));
-    }
-  }, [me, pickedZoneId]);
 
   useEffect(() => {
     try {
@@ -1125,13 +1126,24 @@ export default function CashierHubPage() {
       if (q.length < 2 || !activeZoneIds.length) return;
       setSearching(true);
       try {
-        const data = await api<{ query: string; results: CashierSearchHit[] }>(
-          "cashier/search/",
-          { query: { q, limit: 8, zone: activeZoneIds[0] } },
+        const pages = await Promise.all(
+          activeZoneIds.map((zoneId) =>
+            api<{ query: string; results: CashierSearchHit[] }>(
+              "cashier/search/",
+              { query: { q, limit: 8, zone: zoneId } },
+            ),
+          ),
         );
-        setHits(data.results);
-        setSearchedQuery(data.query || plateKey(q));
-        if (announce && data.results.length === 0) {
+        const byKey = new Map<string, CashierSearchHit>();
+        for (const page of pages) {
+          for (const row of page.results) {
+            byKey.set(`${row.session_id ?? row.plate}-${row.zone_id ?? ""}`, row);
+          }
+        }
+        const results = [...byKey.values()];
+        setHits(results);
+        setSearchedQuery(pages[0]?.query || plateKey(q));
+        if (announce && results.length === 0) {
           toast.message("No on-site matches in this zone");
         }
       } catch (err) {
@@ -1887,40 +1899,20 @@ export default function CashierHubPage() {
                 when nothing here owes money.
               </p>
             </div>
-            {me?.has_assignment && me.zones.length === 1 ? (
-              <Badge variant="outline" className="font-normal">
-                {me.zones[0].site_name} · {me.zones[0].name}
-              </Badge>
+            {me?.has_assignment ? (
+              <div className="flex flex-wrap justify-end gap-2">
+                {me.zones.map((zone) => (
+                  <Badge
+                    key={zone.id}
+                    variant="outline"
+                    className="font-normal"
+                  >
+                    {zone.site_name} · {zone.name}
+                  </Badge>
+                ))}
+              </div>
             ) : null}
           </div>
-
-          {me?.has_assignment && me.zones.length > 1 ? (
-            <div className="space-y-1.5 sm:max-w-sm">
-              <label className="text-xs font-medium text-muted-foreground">
-                Desk zone
-              </label>
-              <Select
-                value={pickedZoneId || undefined}
-                onValueChange={(value) => {
-                  setPickedZoneId(value);
-                  setSelectedGateId("");
-                  setHits([]);
-                  setSearchedQuery("");
-                }}
-              >
-                <SelectTrigger className="h-11 rounded-xl bg-background/90">
-                  <SelectValue placeholder="Select zone" />
-                </SelectTrigger>
-                <SelectContent>
-                  {me.zones.map((zone) => (
-                    <SelectItem key={zone.id} value={String(zone.id)}>
-                      {zone.site_name} · {zone.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
 
           {me?.can_pick_zone ? (
             <div className="space-y-2">

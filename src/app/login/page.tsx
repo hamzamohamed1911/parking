@@ -1,7 +1,12 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "@tanstack/react-query";
+import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { Loader } from "@/components/loaders";
@@ -12,11 +17,34 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api";
 
+const loginSchema = z.object({
+  username: z.string().trim().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type LoginValues = z.infer<typeof loginSchema>;
+
 export default function LoginPage() {
   const { login, loading, user } = useAuth();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { username: "", password: "" },
+  });
+
+  const loginMutation = useMutation({
+    mutationFn: ({ username, password }: LoginValues) =>
+      login(username, password),
+    onSuccess: () => {},
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : "Login failed");
+    },
+  });
 
   if (loading || user) {
     return (
@@ -27,19 +55,6 @@ export default function LoginPage() {
         />
       </div>
     );
-  }
-
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await login(username, password);
-      toast.success("Signed in");
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Login failed");
-    } finally {
-      setSubmitting(false);
-    }
   }
 
   return (
@@ -84,36 +99,68 @@ export default function LoginPage() {
               Use your staff account to manage sites, wallets, and access.
             </p>
           </div>
-          <form className="space-y-4" onSubmit={onSubmit}>
+          <form
+            className="space-y-4"
+            onSubmit={handleSubmit((values) => loginMutation.mutate(values))}
+            noValidate
+          >
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
               <Input
                 id="username"
                 autoComplete="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                aria-invalid={Boolean(errors.username)}
+                aria-describedby={
+                  errors.username ? "username-error" : undefined
+                }
                 className="h-11 rounded-xl"
-                required
+                {...register("username")}
               />
+              {errors.username ? (
+                <p id="username-error" className="text-sm text-destructive">
+                  {errors.username.message}
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-11 rounded-xl"
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  aria-invalid={Boolean(errors.password)}
+                  aria-describedby={
+                    errors.password ? "password-error" : undefined
+                  }
+                  className="h-11 rounded-xl pr-11"
+                  {...register("password")}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((open) => !open)}
+                  className="absolute right-2 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              </div>
+              {errors.password ? (
+                <p id="password-error" className="text-sm text-destructive">
+                  {errors.password.message}
+                </p>
+              ) : null}
             </div>
             <Button
               className="h-11 w-full rounded-xl text-base font-semibold"
               type="submit"
-              disabled={submitting}
+              disabled={loginMutation.isPending}
             >
-              {submitting ? "Signing in…" : "Sign in"}
+              {loginMutation.isPending ? "Signing in…" : "Sign in"}
             </Button>
           </form>
         </div>
