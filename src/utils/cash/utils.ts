@@ -78,6 +78,7 @@ export function owingRowVisibleOnSelectedExit(
   >,
   selectedExitDeviceId: number | null
 ): boolean {
+<<<<<<< HEAD
   const deviceId = pendingExitDeviceIdForOwingRow(row, pendingRequests);
   if (deviceId != null) {
     return (
@@ -88,6 +89,22 @@ export function owingRowVisibleOnSelectedExit(
   }
   if (row.at_gate || row.access_request_id) return false;
   return true;
+=======
+  if (
+    selectedExitDeviceId == null ||
+    !Number.isFinite(selectedExitDeviceId)
+  ) {
+    return false;
+  }
+
+  const deviceId = pendingExitDeviceIdForOwingRow(row, pendingRequests);
+
+  if (deviceId == null) {
+    return false;
+  }
+
+  return Number(deviceId) === Number(selectedExitDeviceId);
+>>>>>>> 839f54e3d818cef22e920f28353211d0243a9be9
 }
 
 export function rowFromActiveSession(row: ActiveSession): DeskRow {

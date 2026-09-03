@@ -1619,7 +1619,18 @@ export default function CashierHubPage() {
    * they are no longer stripped just because they also sit in settle/bill.
    */
   const sortedActiveSessions = useMemo(() => {
+    const handled = new Set(
+      [...settleQueue, ...billQueue].map((row) => row.id),
+    );
+
     return activeSessions
+      .filter((row) =>
+        owingRowVisibleOnSelectedExit(
+          row,
+          pendingRows,
+          gateFilterReady ? selectedGateNumeric : null,
+        ),
+      )
       .filter((row) =>
         owingRowVisibleOnSelectedExit(
           row,
@@ -1631,7 +1642,17 @@ export default function CashierHubPage() {
         if (a.at_gate !== b.at_gate) return a.at_gate ? -1 : 1;
         return a.start_time.localeCompare(b.start_time);
       });
-  }, [activeSessions, pendingRows, gateFilterReady, selectedGateNumeric]);
+  }, [
+    activeSessions,
+    settleQueue,
+    billQueue,
+    pendingByPlate,
+    pendingById,
+    requestOnSelectedGate,
+    pendingRows,
+    gateFilterReady,
+    selectedGateNumeric,
+  ]);
 
   const normalizedQuery = useMemo(() => plateKey(query), [query]);
 
@@ -1643,7 +1664,7 @@ export default function CashierHubPage() {
   }, [sortedActiveSessions, normalizedQuery]);
 
   // Typing narrows the worklist. Only when nothing in it matches do we ask the
-  // server, which also sees the stays the worklist hides — free and paid ones.
+  // server, which also sees the stays the worklist hides  free and paid ones.
   const usingLookup = Boolean(normalizedQuery) && localMatches.length === 0;
 
   // Hits are only trustworthy once they belong to the plate on screen.
