@@ -1723,15 +1723,6 @@ export default function CashierHubPage() {
       if (row.at_gate || row.access_request_id) return false;
       return true;
     });
-=======
-    return rows.filter((row) =>
-      owingRowVisibleOnSelectedExit(
-        row,
-        pendingRows,
-        gateFilterReady ? selectedGateNumeric : null
-      )
-    );
->>>>>>> 565a6c9 (Fix cashier owing money gate filter)
   }, [
     usingLookup,
     lookupSettled,
@@ -3460,3 +3451,4 @@ export default function CashierHubPage() {
     </div>
   );
 }
+
