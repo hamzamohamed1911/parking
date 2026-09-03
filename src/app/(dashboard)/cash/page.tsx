@@ -71,6 +71,7 @@ import type {
   Zone,
 } from "@/lib/types";
 import { cn, formatDateTime, formatMoney } from "@/lib/utils";
+import { owingRowVisibleOnSelectedExit } from "@/utils/cash/utils";
 
 type CashierZone = {
   id: number;
@@ -391,6 +392,10 @@ export default function CashierHubPage() {
   const [pendingByDevice, setPendingByDevice] = useState<
     Record<number, AccessRequest>
   >({});
+  /** Full pending list for owing-desk matching (not collapsed to one AR per device). */
+  const [pendingRows, setPendingRows] = useState<
+    (AccessRequest & { device_id?: number })[]
+  >([]);
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("idle");
   const [gatesLoading, setGatesLoading] = useState(false);
   const [arBusyId, setArBusyId] = useState<number | null>(null);
@@ -628,15 +633,18 @@ export default function CashierHubPage() {
   const applyPendingRows = useCallback(
     (rows: (AccessRequest & { device_id?: number })[]) => {
       const scoped = rows.filter((row) => rowInActiveZone(row));
+      const withDevice: (AccessRequest & { device_id?: number })[] = [];
       const next: Record<number, AccessRequest> = {};
       for (const row of scoped) {
         const deviceId = Number(row.device_id ?? row.device);
         if (!Number.isFinite(deviceId)) continue;
+        withDevice.push(row);
         if (!next[deviceId]) next[deviceId] = row;
       }
-      knownPendingIdsRef.current = new Set(scoped.map((row) => row.id));
+      knownPendingIdsRef.current = new Set(withDevice.map((row) => row.id));
       pendingByDeviceRef.current = next;
       setPendingByDevice(next);
+      setPendingRows(withDevice);
     },
     [rowInActiveZone],
   );
@@ -652,6 +660,15 @@ export default function CashierHubPage() {
         const next = { ...current, [deviceId]: row };
         pendingByDeviceRef.current = next;
         return next;
+      });
+      setPendingRows((current) => {
+        const index = current.findIndex((item) => item.id === row.id);
+        if (index >= 0) {
+          const next = [...current];
+          next[index] = row;
+          return next;
+        }
+        return [...current, row];
       });
       if (!isNew) return;
       const selected = Number(selectedGateIdRef.current);
@@ -677,6 +694,7 @@ export default function CashierHubPage() {
       knownPendingIdsRef.current.delete(row.id);
       const deviceKey = Number(row.device_id ?? row.device);
       const cleared: number[] = [];
+      setPendingRows((current) => current.filter((item) => item.id !== row.id));
       setPendingByDevice((current) => {
         const next = { ...current };
         if (Number.isFinite(deviceKey)) {
@@ -1596,28 +1614,26 @@ export default function CashierHubPage() {
   );
 
   /**
-   * Cars already queued above (settleable exits and live kiosk bills) are
-   * handled there — showing them again here would make the desk collect twice.
    * Longest stays first: they owe the most and leave soonest.
+   * Pending exit ARs are kept when they belong to the selected exit device;
+   * they are no longer stripped just because they also sit in settle/bill.
    */
   const sortedActiveSessions = useMemo(() => {
     const handled = new Set(
       [...settleQueue, ...billQueue].map((row) => row.id),
     );
+
     return activeSessions
       .filter(
         (row) => !row.access_request_id || !handled.has(row.access_request_id),
       )
-      .filter((row) => {
-        const gateRequest =
-          pendingByPlate[plateKey(row.plate)] ??
-          (row.access_request_id
-            ? pendingById[row.access_request_id]
-            : undefined);
-        if (gateRequest) return requestOnSelectedGate(gateRequest);
-        if (row.at_gate || row.access_request_id) return false;
-        return true;
-      })
+      .filter((row) =>
+        owingRowVisibleOnSelectedExit(
+          row,
+          pendingRows,
+          gateFilterReady ? selectedGateNumeric : null
+        )
+      )
       .sort((a, b) => {
         if (a.at_gate !== b.at_gate) return a.at_gate ? -1 : 1;
         return a.start_time.localeCompare(b.start_time);
@@ -1629,6 +1645,9 @@ export default function CashierHubPage() {
     pendingByPlate,
     pendingById,
     requestOnSelectedGate,
+    pendingRows,
+    gateFilterReady,
+    selectedGateNumeric,
   ]);
 
   const normalizedQuery = useMemo(() => plateKey(query), [query]);
@@ -1641,7 +1660,7 @@ export default function CashierHubPage() {
   }, [sortedActiveSessions, normalizedQuery]);
 
   // Typing narrows the worklist. Only when nothing in it matches do we ask the
-  // server, which also sees the stays the worklist hides — free and paid ones.
+  // server, which also sees the stays the worklist hides  free and paid ones.
   const usingLookup = Boolean(normalizedQuery) && localMatches.length === 0;
 
   // Hits are only trustworthy once they belong to the plate on screen.
@@ -1653,24 +1672,22 @@ export default function CashierHubPage() {
         ? hits.map(rowFromSearchHit)
         : []
       : localMatches.map(rowFromActiveSession);
-    return rows.filter((row) => {
-      const gateRequest =
-        pendingByPlate[plateKey(row.plate)] ??
-        (row.access_request_id
-          ? pendingById[row.access_request_id]
-          : undefined);
-      if (gateRequest) return requestOnSelectedGate(gateRequest);
-      if (row.at_gate || row.access_request_id) return false;
-      return true;
-    });
+
+    return rows.filter((row) =>
+      owingRowVisibleOnSelectedExit(
+        row,
+        pendingRows,
+        gateFilterReady ? selectedGateNumeric : null
+      )
+    );
   }, [
     usingLookup,
     lookupSettled,
     hits,
     localMatches,
-    pendingByPlate,
-    pendingById,
-    requestOnSelectedGate,
+    pendingRows,
+    gateFilterReady,
+    selectedGateNumeric,
   ]);
 
   const lookupPending = usingLookup && (searching || !lookupSettled);
@@ -3391,3 +3408,4 @@ export default function CashierHubPage() {
     </div>
   );
 }
+
