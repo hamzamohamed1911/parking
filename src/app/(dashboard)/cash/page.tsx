@@ -1690,48 +1690,6 @@ export default function CashierHubPage() {
     selectedGateNumeric,
   ]);
 
-  const normalizedQuery = useMemo(() => plateKey(query), [query]);
-
-  const localMatches = useMemo(() => {
-    if (!normalizedQuery) return sortedActiveSessions;
-    return sortedActiveSessions.filter((row) =>
-      plateKey(row.plate).includes(normalizedQuery),
-    );
-  }, [sortedActiveSessions, normalizedQuery]);
-
-  // Typing narrows the worklist. Only when nothing in it matches do we ask the
-  // server, which also sees the stays the worklist hides — free and paid ones.
-  const usingLookup = Boolean(normalizedQuery) && localMatches.length === 0;
-
-  // Hits are only trustworthy once they belong to the plate on screen.
-  const lookupSettled = searchedQuery === normalizedQuery;
-
-  const deskRows: DeskRow[] = useMemo(() => {
-    const rows = usingLookup
-      ? lookupSettled
-        ? hits.map(rowFromSearchHit)
-        : []
-      : localMatches.map(rowFromActiveSession);
-    return rows.filter((row) => {
-      const gateRequest =
-        pendingByPlate[plateKey(row.plate)] ??
-        (row.access_request_id
-          ? pendingById[row.access_request_id]
-          : undefined);
-      if (gateRequest) return requestOnSelectedGate(gateRequest);
-      if (row.at_gate || row.access_request_id) return false;
-      return true;
-    });
-  }, [
-    usingLookup,
-    lookupSettled,
-    hits,
-    localMatches,
-    pendingRows,
-    gateFilterReady,
-    selectedGateNumeric,
-  ]);
-
   const lookupPending = usingLookup && (searching || !lookupSettled);
 
   const visibleDeskRows =
@@ -3450,5 +3408,4 @@ export default function CashierHubPage() {
     </div>
   );
 }
-
 
