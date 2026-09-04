@@ -733,25 +733,6 @@ function ProjectWorkspaceContent({ section }: ProjectWorkspaceProps) {
     }
 
     try {
-      const sessionsData = await api<Paginated<Session>>("sessions/", {
-        query: {
-          ...(scopedProject != null ? { project: scopedProject } : {}),
-          open: true,
-          page: 1,
-          page_size: 25,
-        },
-      });
-      if (stillCurrent()) setOpenSessions(sessionsData.results ?? []);
-    } catch (err) {
-      if (stillCurrent()) {
-        setOpenSessions([]);
-        errors.push(
-          err instanceof ApiError ? err.message : "Failed to load sessions"
-        );
-      }
-    }
-
-    try {
       const vehiclesPath =
         scopedProject != null
           ? `projects/${scopedProject}/vehicles/`
@@ -806,6 +787,29 @@ function ProjectWorkspaceContent({ section }: ProjectWorkspaceProps) {
     }
   }, [canAccessDashboard, projectId, projects]);
 
+  const loadOpenSessions = useCallback(async () => {
+    if (!canAccessDashboard) {
+      setOpenSessions([]);
+      return;
+    }
+    try {
+      const sessionsData = await api<Paginated<Session>>("sessions/", {
+        query: {
+          ...projectQuery,
+          open: "1",
+          page: 1,
+          page_size: 25,
+        },
+      });
+      setOpenSessions(sessionsData.results ?? []);
+    } catch (err) {
+      setOpenSessions([]);
+      toast.error(
+        err instanceof ApiError ? err.message : "Failed to load sessions"
+      );
+    }
+  }, [canAccessDashboard, projectQuery]);
+
   useEffect(() => {
     if (!filterReady) return;
     void loadDashboard();
@@ -815,6 +819,11 @@ function ProjectWorkspaceContent({ section }: ProjectWorkspaceProps) {
     if (!filterReady) return;
     void loadLists();
   }, [filterReady, loadLists]);
+
+  useEffect(() => {
+    if (!filterReady || activeTab !== "overview") return;
+    void loadOpenSessions();
+  }, [filterReady, activeTab, loadOpenSessions]);
 
   useEffect(() => {
     const t = setTimeout(() => setWalletDebounced(walletSearch.trim()), 250);
@@ -837,8 +846,8 @@ function ProjectWorkspaceContent({ section }: ProjectWorkspaceProps) {
       payment_status:
         sessionPayment === "all" ? undefined : sessionPayment,
       waiver_kind: sessionWaiver === "all" ? undefined : sessionWaiver,
-      open: sessionStatus === "open" ? "1" : undefined,
-      closed: sessionStatus === "closed" ? "1" : undefined,
+      ...(sessionStatus === "open" ? { open: "1" } : {}),
+      ...(sessionStatus === "closed" ? { closed: "1" } : {}),
       billing_exempt:
         sessionExempt === "all"
           ? undefined
@@ -994,6 +1003,7 @@ function ProjectWorkspaceContent({ section }: ProjectWorkspaceProps) {
         query: {
           ...sessionQuery,
           page: sessionsPage,
+          page_size: 25,
         },
       });
       setSessionsList(data.results);
@@ -1023,6 +1033,7 @@ function ProjectWorkspaceContent({ section }: ProjectWorkspaceProps) {
     await Promise.all([
       loadDashboard(),
       loadLists(),
+      activeTab === "overview" ? loadOpenSessions() : Promise.resolve(),
       activeTab === "wallets" ? loadWallets() : Promise.resolve(),
       activeTab === "sessions" ? loadSessions() : Promise.resolve(),
     ]);
