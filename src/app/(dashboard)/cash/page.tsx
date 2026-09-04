@@ -336,12 +336,21 @@ function rowFromSearchHit(hit: CashierSearchHit): DeskRow {
 }
 
 /** Cash the cashier should collect before settling — bill, else open stay. */
-function settleAmountLabel(row: AccessRequest): string | null {
+function settleAmountParts(row: AccessRequest): {
+  amount: string;
+  currency: string;
+} | null {
   const bill = row.open_payment_intent;
   const owed = row.billable_open_session;
   const amount = bill?.amount || bill?.estimated_amount || owed?.amount;
   if (!amount) return null;
-  return `${amount} ${bill?.currency || owed?.currency || ""}`.trim();
+  return { amount, currency: bill?.currency || owed?.currency || "SAR" };
+}
+
+function settleAmountLabel(row: AccessRequest): string | null {
+  const parts = settleAmountParts(row);
+  if (!parts) return null;
+  return `${parts.amount} ${parts.currency}`.trim();
 }
 
 /**
@@ -1300,13 +1309,36 @@ export default function CashierHubPage() {
   }
 
   async function validateAr(row: AccessRequest) {
+    const parts = settleAmountParts(row);
+    const preview = cashierDiscountPreview(
+      parts?.amount ?? "",
+      discountPercentage,
+    );
+    if (preview.invalid) {
+      toast.error("Discount must be between 0 and 100");
+      return;
+    }
+    const reason = discountReason.trim();
+    if (preview.hasDiscount && !reason) {
+      toast.error("A reason is required when applying a discount");
+      return;
+    }
     setArBusyId(row.id);
     try {
+      const body: {
+        note: string;
+        discount_percentage?: string;
+        discount_reason?: string;
+      } = { note: "Validated payment via cashier hub" };
+      if (preview.hasDiscount) {
+        body.discount_percentage = String(preview.percentage);
+        body.discount_reason = reason;
+      }
       const updated = await api<AccessRequest>(
         `access-requests/${row.id}/validate-payment/`,
         {
           method: "POST",
-          body: { note: "Validated payment via cashier hub" },
+          body,
         },
       );
       toast.success("Payment validated · gate opened");
@@ -1315,8 +1347,9 @@ export default function CashierHubPage() {
         setReceipt({
           sessionId: updated.linked_session_id,
           plate: updated.plate,
-          amountLabel:
-            settleAmountLabel(row) ?? settleAmountLabel(updated) ?? "",
+          amountLabel: parts
+            ? formatMoney(preview.collect, parts.currency)
+            : settleAmountLabel(updated) ?? "",
         });
       }
       void loadPending();
@@ -1753,15 +1786,16 @@ export default function CashierHubPage() {
     manualDevice,
   );
 
-  const sessionDiscountBlocked =
-    validateTarget?.kind === "session" &&
-    (() => {
-      const preview = cashierDiscountPreview(
-        validateTarget.hit.fee,
-        discountPercentage,
-      );
-      return preview.invalid || (preview.hasDiscount && !discountReason.trim());
-    })();
+  const discountBlocked = (() => {
+    if (!validateTarget) return false;
+    const fee =
+      validateTarget.kind === "session"
+        ? validateTarget.hit.fee
+        : settleAmountParts(validateTarget.row)?.amount;
+    if (validateTarget.kind === "request" && !fee) return false;
+    const preview = cashierDiscountPreview(fee ?? "", discountPercentage);
+    return preview.invalid || (preview.hasDiscount && !discountReason.trim());
+  })();
 
   // Plate entry is the desk's primary job — keep it one keystroke away.
   useEffect(() => {
@@ -3189,138 +3223,131 @@ export default function CashierHubPage() {
           </DialogHeader>
           <div className="space-y-3">
             {(() => {
-              if (validateTarget?.kind === "session") {
-                const preview = cashierDiscountPreview(
-                  validateTarget.hit.fee,
-                  discountPercentage,
-                );
-                const reasonRequired =
-                  preview.hasDiscount && !discountReason.trim();
-                const currency = "SAR";
-                return (
-                  <>
-                    {validateTarget.hit.parking_breakdown ? (
-                      <div className="rounded-xl border bg-muted/40 px-4 py-3">
-                        <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                          Parking details
-                        </p>
-                        <ParkingJourney
-                          breakdown={validateTarget.hit.parking_breakdown}
-                          showAmounts={!preview.hasDiscount}
-                        />
-                      </div>
-                    ) : null}
-                    <div className="flex items-baseline justify-between rounded-xl border bg-muted/40 px-4 py-3">
-                      <span className="text-sm text-muted-foreground">
-                        Original amount
-                      </span>
-                      <span className="text-2xl font-bold tabular-nums">
-                        {formatMoney(preview.original, currency)}
-                      </span>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cash-discount-percentage">Discount</Label>
-                      <div className="relative">
-                        <Input
-                          id="cash-discount-percentage"
-                          type="number"
-                          min={0}
-                          max={100}
-                          step={0.01}
-                          inputMode="decimal"
-                          placeholder="0"
-                          value={discountPercentage}
-                          disabled={validateBusyId != null}
-                          onChange={(e) =>
-                            setDiscountPercentage(e.target.value)
-                          }
-                          className="pr-8"
-                        />
-                        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
-                          %
-                        </span>
-                      </div>
-                      {preview.invalid ? (
-                        <p className="text-xs text-destructive">
-                          Enter a value between 0 and 100.
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cash-discount-reason">
-                        Discount reason
-                        {preview.hasDiscount ? (
-                          <span className="text-destructive"> *</span>
-                        ) : null}
-                      </Label>
-                      <Input
-                        id="cash-discount-reason"
-                        value={discountReason}
-                        disabled={validateBusyId != null}
-                        placeholder={
-                          preview.hasDiscount
-                            ? "Required when a discount is applied"
-                            : "Optional unless a discount is applied"
-                        }
-                        onChange={(e) => setDiscountReason(e.target.value)}
+              if (!validateTarget) return null;
+              const parts =
+                validateTarget.kind === "session"
+                  ? { amount: validateTarget.hit.fee, currency: "SAR" }
+                  : settleAmountParts(validateTarget.row);
+              if (!parts) return null;
+              const preview = cashierDiscountPreview(
+                parts.amount,
+                discountPercentage,
+              );
+              const reasonRequired =
+                preview.hasDiscount && !discountReason.trim();
+              const currency = parts.currency;
+              const breakdown =
+                validateTarget.kind === "session"
+                  ? validateTarget.hit.parking_breakdown
+                  : undefined;
+              const busy = validateBusyId != null || arBusyId != null;
+              return (
+                <>
+                  {breakdown ? (
+                    <div className="rounded-xl border bg-muted/40 px-4 py-3">
+                      <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Parking details
+                      </p>
+                      <ParkingJourney
+                        breakdown={breakdown}
+                        showAmounts={!preview.hasDiscount}
                       />
-                      {reasonRequired ? (
-                        <p className="text-xs text-destructive">
-                          A reason is required when applying a discount.
-                        </p>
-                      ) : null}
                     </div>
-                    {preview.hasDiscount ? (
-                      <div className="space-y-1.5 rounded-xl border bg-muted/40 px-4 py-3 text-sm">
-                        <div className="flex items-baseline justify-between">
-                          <span className="text-muted-foreground">
-                            Original amount
-                          </span>
-                          <span className="tabular-nums">
-                            {formatMoney(preview.original, currency)}
-                          </span>
-                        </div>
-                        <div className="flex items-baseline justify-between">
-                          <span className="text-muted-foreground">
-                            Discount
-                          </span>
-                          <span className="tabular-nums">
-                            −{formatMoney(preview.discountAmount, currency)}
-                          </span>
-                        </div>
-                        <div className="flex items-baseline justify-between border-t pt-1.5">
-                          <span className="font-medium">Amount to collect</span>
-                          <span className="text-xl font-bold tabular-nums">
-                            {formatMoney(preview.collect, currency)}
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-baseline justify-between rounded-xl border bg-muted/40 px-4 py-3">
-                        <span className="text-sm text-muted-foreground">
-                          Amount to collect
+                  ) : null}
+                  <div className="flex items-baseline justify-between rounded-xl border bg-muted/40 px-4 py-3">
+                    <span className="text-sm text-muted-foreground">
+                      Original amount
+                    </span>
+                    <span className="text-2xl font-bold tabular-nums">
+                      {formatMoney(preview.original, currency)}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cash-discount-percentage">Discount</Label>
+                    <div className="relative">
+                      <Input
+                        id="cash-discount-percentage"
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.01}
+                        inputMode="decimal"
+                        placeholder="0"
+                        value={discountPercentage}
+                        disabled={busy}
+                        onChange={(e) =>
+                          setDiscountPercentage(e.target.value)
+                        }
+                        className="pr-8"
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
+                        %
+                      </span>
+                    </div>
+                    {preview.invalid ? (
+                      <p className="text-xs text-destructive">
+                        Enter a value between 0 and 100.
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cash-discount-reason">
+                      Discount reason
+                      {preview.hasDiscount ? (
+                        <span className="text-destructive"> *</span>
+                      ) : null}
+                    </Label>
+                    <Input
+                      id="cash-discount-reason"
+                      value={discountReason}
+                      disabled={busy}
+                      placeholder={
+                        preview.hasDiscount
+                          ? "Required when a discount is applied"
+                          : "Optional unless a discount is applied"
+                      }
+                      onChange={(e) => setDiscountReason(e.target.value)}
+                    />
+                    {reasonRequired ? (
+                      <p className="text-xs text-destructive">
+                        A reason is required when applying a discount.
+                      </p>
+                    ) : null}
+                  </div>
+                  {preview.hasDiscount ? (
+                    <div className="space-y-1.5 rounded-xl border bg-muted/40 px-4 py-3 text-sm">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-muted-foreground">
+                          Original amount
                         </span>
-                        <span className="text-2xl font-bold tabular-nums">
+                        <span className="tabular-nums">
+                          {formatMoney(preview.original, currency)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-muted-foreground">Discount</span>
+                        <span className="tabular-nums">
+                          −{formatMoney(preview.discountAmount, currency)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between border-t pt-1.5">
+                        <span className="font-medium">Amount to collect</span>
+                        <span className="text-xl font-bold tabular-nums">
                           {formatMoney(preview.collect, currency)}
                         </span>
                       </div>
-                    )}
-                  </>
-                );
-              }
-              const amount = validateTarget
-                ? settleAmountLabel(validateTarget.row)
-                : null;
-              if (!amount) return null;
-              return (
-                <div className="flex items-baseline justify-between rounded-xl border bg-muted/40 px-4 py-3">
-                  <span className="text-sm text-muted-foreground">
-                    Amount to collect
-                  </span>
-                  <span className="text-2xl font-bold tabular-nums">
-                    {amount}
-                  </span>
-                </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-baseline justify-between rounded-xl border bg-muted/40 px-4 py-3">
+                      <span className="text-sm text-muted-foreground">
+                        Amount to collect
+                      </span>
+                      <span className="text-2xl font-bold tabular-nums">
+                        {formatMoney(preview.collect, currency)}
+                      </span>
+                    </div>
+                  )}
+                </>
               );
             })()}
             <p className="rounded-lg border border-warning/30 bg-warning-muted/50 px-3 py-2.5 text-xs leading-relaxed">
@@ -3341,7 +3368,7 @@ export default function CashierHubPage() {
                 disabled={
                   validateBusyId != null ||
                   arBusyId != null ||
-                  sessionDiscountBlocked
+                  discountBlocked
                 }
                 onClick={() => {
                   if (!validateTarget) return;
