@@ -337,13 +337,11 @@ function rowFromSearchHit(hit: CashierSearchHit): DeskRow {
 
 /** Cash the cashier should collect before settling — bill, else open stay. */
 function settleAmountLabel(row: AccessRequest): string | null {
-  if (row.open_payment_intent) {
-    return `${row.open_payment_intent.amount} ${row.open_payment_intent.currency}`;
-  }
-  if (row.billable_open_session) {
-    return `${row.billable_open_session.amount} ${row.billable_open_session.currency}`;
-  }
-  return null;
+  const bill = row.open_payment_intent;
+  const owed = row.billable_open_session;
+  const amount = bill?.amount || bill?.estimated_amount || owed?.amount;
+  if (!amount) return null;
+  return `${amount} ${bill?.currency || owed?.currency || ""}`.trim();
 }
 
 /**
