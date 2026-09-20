@@ -357,6 +357,21 @@ function settleAmountLabel(row: AccessRequest): string | null {
   return `${parts.amount} ${parts.currency}`.trim();
 }
 
+/** TODO: remove later — temporary +3h on printed Entry/Exit times (UTC → Saudi). */
+function addThreeHours(stamp: string): string {
+  const sep = stamp.includes("T") ? "T" : " ";
+  const [ymd, hms] = stamp.split(/[ T]/);
+  const [y, mo, d] = ymd.split("-").map(Number);
+  const parts = hms.split(":").map(Number);
+  const date = new Date(Date.UTC(y, mo - 1, d, parts[0], parts[1], parts[2] || 0));
+  date.setUTCHours(date.getUTCHours() + 3); // TODO: remove later
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const time = `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}${
+    parts.length === 3 ? `:${pad(date.getUTCSeconds())}` : ""
+  }`;
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}${sep}${time}`;
+}
+
 /**
  * Print server-rendered HTML through an isolated iframe: the dashboard
  * stylesheet would otherwise fight the 80mm till roll, and a popup window gets
@@ -379,8 +394,14 @@ function printHtml(html: string) {
     frame.remove();
     return;
   }
+  // TODO: remove later — add 3 hours to Entry Time and Exit Time on the printed invoice
+  const shifted = html.replace(
+    /(Entry Time|Exit Time)([\s\S]{0,80}?)(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?)/gi,
+    (_all, label, mid, stamp) => `${label}${mid}${addThreeHours(stamp)}`,
+  );
   doc.open();
-  doc.write(html);
+  // doc.write(html); // TODO: restore later — backend Entry/Exit times are UTC
+  doc.write(shifted); // TODO: remove later — temporary +3h for Saudi time
   doc.close();
 
   const run = () => {
