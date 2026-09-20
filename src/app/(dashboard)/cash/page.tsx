@@ -37,6 +37,12 @@ import {
 import { Loader } from "@/components/loaders";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useProjectFilter } from "@/components/providers/project-filter-provider";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -73,9 +79,7 @@ import type {
   Zone,
 } from "@/lib/types";
 import { cn, formatDateTime, formatMoney } from "@/lib/utils";
-import {
-  owingRowMatchesSelectedExitGate,
-} from "@/utils/cash/utils";
+import { owingRowMatchesSelectedExitGate } from "@/utils/cash/utils";
 
 type CashierZone = {
   id: number;
@@ -452,6 +456,7 @@ export default function CashierHubPage() {
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [activeLoading, setActiveLoading] = useState(false);
   const [activeExpanded, setActiveExpanded] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [billSessionId, setBillSessionId] = useState<number | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   // Native window.confirm hides the amount and looks broken on desk tablets.
@@ -805,9 +810,7 @@ export default function CashierHubPage() {
       }
       setRecentReceipts(
         [...byId.values()]
-          .sort((a, b) =>
-            (b.paid_at || "").localeCompare(a.paid_at || ""),
-          )
+          .sort((a, b) => (b.paid_at || "").localeCompare(a.paid_at || ""))
           .slice(0, 7),
       );
     } catch (err) {
@@ -825,6 +828,7 @@ export default function CashierHubPage() {
   }, [loadReceipts]);
 
   const loadActiveSessions = useCallback(async () => {
+    if (!isOpen) return;
     const zoneIds = new Set(activeZoneIds);
     const gateId = selectedGateIdRef.current;
     if (gateId) {
@@ -867,21 +871,23 @@ export default function CashierHubPage() {
     } finally {
       setActiveLoading(false);
     }
-  }, [activeZoneIds, devices]);
+  }, [activeZoneIds, devices, isOpen]);
 
   useEffect(() => {
+    if (!isOpen) return;
     void loadActiveSessions();
-  }, [loadActiveSessions, selectedGateId]);
+  }, [loadActiveSessions, selectedGateId, isOpen]);
 
   // Fees grow with every hour parked, so the desk must never quote a stale
   // amount. Re-price the list on a slow timer instead of on every render.
   useEffect(() => {
+    if (!isOpen) return;
     const timer = window.setInterval(() => {
       setNowTick(Date.now());
       void loadActiveSessions();
     }, 60000);
     return () => window.clearInterval(timer);
-  }, [loadActiveSessions]);
+  }, [loadActiveSessions, isOpen]);
 
   const loadTariff = useCallback(async () => {
     if (activeZoneIds.length !== 1) {
@@ -1168,7 +1174,10 @@ export default function CashierHubPage() {
         const byKey = new Map<string, CashierSearchHit>();
         for (const page of pages) {
           for (const row of page.results) {
-            byKey.set(`${row.session_id ?? row.plate}-${row.zone_id ?? ""}`, row);
+            byKey.set(
+              `${row.session_id ?? row.plate}-${row.zone_id ?? ""}`,
+              row,
+            );
           }
         }
         const results = [...byKey.values()];
@@ -1349,7 +1358,7 @@ export default function CashierHubPage() {
           plate: updated.plate,
           amountLabel: parts
             ? formatMoney(preview.collect, parts.currency)
-            : settleAmountLabel(updated) ?? "",
+            : (settleAmountLabel(updated) ?? ""),
         });
       }
       void loadPending();
@@ -1698,12 +1707,7 @@ export default function CashierHubPage() {
         if (a.at_gate !== b.at_gate) return a.at_gate ? -1 : 1;
         return a.start_time.localeCompare(b.start_time);
       });
-  }, [
-    activeSessions,
-    pendingRows,
-    gateFilterReady,
-    selectedGateDevice,
-  ]);
+  }, [activeSessions, pendingRows, gateFilterReady, selectedGateDevice]);
 
   const normalizedQuery = useMemo(() => plateKey(query), [query]);
 
@@ -1765,10 +1769,10 @@ export default function CashierHubPage() {
   }, [validateTarget]);
 
   useEffect(() => {
-    if (!usingLookup || normalizedQuery.length < 2) return;
+    if (!isOpen || !usingLookup || normalizedQuery.length < 2) return;
     const timer = window.setTimeout(() => void runLookup(normalizedQuery), 300);
     return () => window.clearTimeout(timer);
-  }, [usingLookup, normalizedQuery, runLookup]);
+  }, [isOpen, usingLookup, normalizedQuery, runLookup]);
 
   const focusSearch = useCallback(() => {
     const input = searchInputRef.current;
@@ -2357,12 +2361,13 @@ export default function CashierHubPage() {
       {needsAttentionCount > 0 ? (
         <button
           type="button"
-          onClick={() =>
+          onClick={() => {
+            setIsOpen(true);
             gatesSectionRef.current?.scrollIntoView({
               behavior: "smooth",
               block: "start",
-            })
-          }
+            });
+          }}
           className="flex w-full items-center gap-3 rounded-2xl border border-warning/40 bg-warning-muted px-4 py-3 text-left shadow-sm transition-colors hover:bg-warning-muted/70 sm:px-5"
         >
           <span className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-warning/20">
@@ -2382,409 +2387,439 @@ export default function CashierHubPage() {
         </button>
       ) : null}
 
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold tracking-tight">
-                {normalizedQuery
-                  ? `Matches for ${normalizedQuery}`
-                  : "Cars owing money"}
-              </h2>
-              {deskRows.length > 0 ? (
-                <Badge variant="outline" className="tabular-nums">
-                  {deskRows.length}
-                </Badge>
-              ) : null}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {usingLookup
-                ? "No car here owes money under that plate, so this is every open stay in the zone — including free and already-paid ones."
-                : "Open stays for this exit gate with a fee due — take cash at the desk, or send the bill to the kiosk for cars already at a gate."}
-              {!normalizedQuery && activeOwedTotal ? (
-                <>
-                  {" "}
-                  <span className="font-medium text-foreground">
-                    {activeOwedTotal} outstanding
-                  </span>
-                </>
-              ) : null}
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              usingLookup
-                ? void runLookup(normalizedQuery, { announce: true })
-                : void loadActiveSessions()
-            }
-            disabled={activeLoading || searching}
-          >
-            {activeLoading || searching ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Car className="size-4" />
-            )}
-            Refresh
-          </Button>
-        </div>
-
-        {(activeLoading && !normalizedQuery && deskRows.length === 0) ||
-        lookupPending ? (
-          <div className="rounded-2xl border bg-card px-5 py-10 text-center shadow-sm">
-            <Loader />
-          </div>
-        ) : deskRows.length === 0 ? (
-          <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
-            {normalizedQuery
-              ? "No car on site matches that plate for this exit gate."
-              : gateFilterReady
-                ? "Nothing to collect at this exit gate — every open stay is still free, already paid, or queued above."
-                : "Select an exit gate to see cars owing money at that lane."}
-          </div>
-        ) : (
-          <>
-            <ul className="divide-y overflow-hidden rounded-2xl border bg-card shadow-sm">
-              {visibleDeskRows.map((row) => {
-                const gateRequest = gateRequestFor(row);
-                const atGate = row.at_gate || Boolean(gateRequest);
-                return (
-                  <li
-                    key={row.session_id}
-                    className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
-                  >
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-mono text-lg font-semibold tracking-wider">
-                          {row.plate}
-                        </p>
-                        {row.match && !row.match.exact ? (
-                          <Badge
-                            variant={row.match.weak ? "warning" : "outline"}
-                          >
-                            {row.match.percent}% match
-                            {row.match.weak ? " · weak" : ""}
-                          </Badge>
-                        ) : null}
-                        {row.within_paid_exit_grace ? (
-                          <Badge variant="success">Exit grace active</Badge>
-                        ) : null}
-                        {atGate ? (
-                          <Badge variant="warning">
-                            At{" "}
-                            {row.gate_label ??
-                              gateRequest?.device_label ??
-                              "gate"}
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {row.zone_name ? `${row.zone_name} · ` : ""}
-                        parked {elapsedLabel(row.start_time, nowTick)} · since{" "}
-                        {formatDateTime(row.start_time)}
-                        {row.within_paid_exit_grace && row.paid_exit_until
-                          ? ` · exit before ${formatDateTime(row.paid_exit_until)}`
-                          : ""}
-                      </p>
-                      {row.parking_breakdown?.segments?.length ? (
-                        <ParkingJourney
-                          breakdown={row.parking_breakdown}
-                          className="mt-2 rounded-xl border bg-muted/30 px-3 py-2"
-                        />
-                      ) : null}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="sm:text-right">
-                        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                          {row.within_paid_exit_grace ? "Paid" : "Amount due"}
-                        </p>
-                        <p className="text-xl font-bold tabular-nums">
-                          {formatMoney(row.fee)}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button asChild variant="ghost" size="sm">
-                          <Link href={`/sessions/${row.session_id}`}>
-                            Session
-                          </Link>
-                        </Button>
-                        {row.within_paid_exit_grace ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={printBusyId === row.session_id}
-                            onClick={() =>
-                              void printSessionBill(row.session_id)
-                            }
-                          >
-                            {printBusyId === row.session_id ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Printer className="size-4" />
-                            )}
-                            Receipt
-                          </Button>
-                        ) : null}
-                        {atGate && gateRequest ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={billSessionId === row.session_id}
-                            onClick={() =>
-                              void sendBillForSession(row, gateRequest.id)
-                            }
-                          >
-                            {billSessionId === row.session_id ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : (
-                              <Banknote className="size-4" />
-                            )}
-                            Bill on kiosk
-                          </Button>
-                        ) : null}
-                        <Button
-                          size="sm"
-                          disabled={
-                            !row.can_validate ||
-                            validateBusyId === row.session_id
-                          }
-                          onClick={() => takeCashForRow(row)}
-                        >
-                          {validateBusyId === row.session_id ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <Wallet className="size-4" />
-                          )}
-                          {row.within_paid_exit_grace
-                            ? "Already paid"
-                            : gateRequest?.can_validate_payment
-                              ? "Take cash · open"
-                              : "Take cash"}
-                        </Button>
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-            {!normalizedQuery && deskRows.length > ACTIVE_PREVIEW_COUNT ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full"
-                onClick={() => setActiveExpanded((open) => !open)}
-              >
-                {activeExpanded ? "Show fewer" : `Show all ${deskRows.length}`}
-              </Button>
-            ) : null}
-          </>
-        )}
-      </section>
-
-      <section ref={gatesSectionRef} className="scroll-mt-4 space-y-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold tracking-tight">
-                Zone gates
-              </h2>
-              {waitingCount > 0 ? (
-                <Badge variant="warning" className="tabular-nums">
-                  {waitingCount} waiting
-                </Badge>
-              ) : null}
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium",
-                  streamStatus === "live" &&
-                    "bg-success-muted text-success-muted-foreground",
-                  streamStatus === "offline" &&
-                    "bg-destructive/15 text-destructive",
-                  (streamStatus === "connecting" || streamStatus === "idle") &&
-                    "bg-muted text-muted-foreground",
-                )}
-              >
-                <Radio className="size-3" />
-                {streamStatus === "live"
-                  ? "Live"
-                  : streamStatus === "connecting"
-                    ? "Connecting…"
-                    : streamStatus === "offline"
-                      ? "Reconnecting…"
-                      : "Idle"}
+      <Accordion
+        type="single"
+        collapsible
+        value={isOpen ? "owing" : ""}
+        onValueChange={(value) => setIsOpen(value === "owing")}
+      >
+        <AccordionItem value="owing" className="border-none">
+          <section ref={gatesSectionRef} className="scroll-mt-4">
+            <AccordionTrigger className="py-1 hover:no-underline cursor-pointer">
+              <span className="flex items-center gap-2">
+                <span className="text-lg font-semibold tracking-tight">
+                  {normalizedQuery
+                    ? `Matches for ${normalizedQuery}`
+                    : "Cars owing money"}
+                </span>
+                {isOpen && deskRows.length > 0 ? (
+                  <Badge variant="outline" className="tabular-nums">
+                    {deskRows.length}
+                  </Badge>
+                ) : null}
               </span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {gateFilterReady
-                ? "Live view of the selected exit gate"
-                : me?.can_pick_zone
-                  ? "Select an exit gate to load that lane"
-                  : "Select an exit gate to load that lane"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={toggleAlerts}
-              aria-pressed={alertsOn}
-              title={
-                alertsOn
-                  ? "Sound and visual alerts are on"
-                  : "Click to enable alerts for new waiting vehicles"
-              }
-            >
-              {alertsOn ? (
-                <Bell className="size-4" />
-              ) : (
-                <BellOff className="size-4" />
-              )}
-              {alertsOn ? "Alerts on" : "Alerts off"}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void loadGates()}
-              disabled={gatesLoading || !hubReady}
-            >
-              {gatesLoading ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : null}
-              Refresh
-            </Button>
-          </div>
-        </div>
+            </AccordionTrigger>
 
-        {!hubReady ? (
-          <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
-            Select a site and zone to load gates.
-          </div>
-        ) : exitGates.length === 0 && !gatesLoading ? (
-          <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
-            No gates available.
-          </div>
-        ) : !gateFilterReady ? (
-          <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
-            Select an exit gate to see this lane.
-          </div>
-        ) : gatesLoading && devices.length === 0 ? (
-          <Loader compact label="Loading gates…" />
-        ) : (
-          <div className="space-y-4">
-            {zonesWithDevices.map(({ zone, entries, exits, waiting }) => (
-              <div
-                key={zone.id}
-                className="overflow-hidden rounded-2xl border bg-card/40 shadow-sm"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3 sm:px-5">
-                  <div className="min-w-0">
-                    <p className="font-semibold tracking-tight">
-                      {zone.site_name} · {zone.name}
-                      {selectedGateDevice
-                        ? ` · ${gateLabel(selectedGateDevice)}`
-                        : ""}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {zone.project_name ? `${zone.project_name} · ` : ""}
-                      selected exit gate
+            <AccordionContent className="space-y-3 pb-0">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  {usingLookup
+                    ? "No car here owes money under that plate, so this is every open stay in the zone — including free and already-paid ones."
+                    : "Open stays for this exit gate with a fee due — take cash at the desk, or send the bill to the kiosk for cars already at a gate."}
+                  {!normalizedQuery && activeOwedTotal ? (
+                    <>
+                      {" "}
+                      <span className="font-medium text-foreground">
+                        {activeOwedTotal} outstanding
+                      </span>
+                    </>
+                  ) : null}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    usingLookup
+                      ? void runLookup(normalizedQuery, { announce: true })
+                      : void loadActiveSessions()
+                  }
+                  disabled={activeLoading || searching}
+                >
+                  {activeLoading || searching ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Car className="size-4" />
+                  )}
+                  Refresh
+                </Button>
+              </div>
+
+              {(activeLoading && !normalizedQuery && deskRows.length === 0) ||
+              lookupPending ? (
+                <div className="rounded-2xl border bg-card px-5 py-10 text-center shadow-sm">
+                  <Loader />
+                </div>
+              ) : deskRows.length === 0 ? (
+                <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
+                  {normalizedQuery
+                    ? "No car on site matches that plate for this exit gate."
+                    : gateFilterReady
+                      ? "Nothing to collect at this exit gate — every open stay is still free, already paid, or queued above."
+                      : "Select an exit gate to see cars owing money at that lane."}
+                </div>
+              ) : (
+                <>
+                  <ul className="divide-y overflow-hidden rounded-2xl border bg-card shadow-sm">
+                    {visibleDeskRows.map((row) => {
+                      const gateRequest = gateRequestFor(row);
+                      const atGate = row.at_gate || Boolean(gateRequest);
+                      return (
+                        <li
+                          key={row.session_id}
+                          className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+                        >
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-mono text-lg font-semibold tracking-wider">
+                                {row.plate}
+                              </p>
+                              {row.match && !row.match.exact ? (
+                                <Badge
+                                  variant={
+                                    row.match.weak ? "warning" : "outline"
+                                  }
+                                >
+                                  {row.match.percent}% match
+                                  {row.match.weak ? " · weak" : ""}
+                                </Badge>
+                              ) : null}
+                              {row.within_paid_exit_grace ? (
+                                <Badge variant="success">
+                                  Exit grace active
+                                </Badge>
+                              ) : null}
+                              {atGate ? (
+                                <Badge variant="warning">
+                                  At{" "}
+                                  {row.gate_label ??
+                                    gateRequest?.device_label ??
+                                    "gate"}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {row.zone_name ? `${row.zone_name} · ` : ""}
+                              parked {elapsedLabel(row.start_time, nowTick)} ·
+                              since {formatDateTime(row.start_time)}
+                              {row.within_paid_exit_grace && row.paid_exit_until
+                                ? ` · exit before ${formatDateTime(row.paid_exit_until)}`
+                                : ""}
+                            </p>
+                            {row.parking_breakdown?.segments?.length ? (
+                              <ParkingJourney
+                                breakdown={row.parking_breakdown}
+                                className="mt-2 rounded-xl border bg-muted/30 px-3 py-2"
+                              />
+                            ) : null}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <div className="sm:text-right">
+                              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                {row.within_paid_exit_grace
+                                  ? "Paid"
+                                  : "Amount due"}
+                              </p>
+                              <p className="text-xl font-bold tabular-nums">
+                                {formatMoney(row.fee)}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button asChild variant="ghost" size="sm">
+                                <Link href={`/sessions/${row.session_id}`}>
+                                  Session
+                                </Link>
+                              </Button>
+                              {row.within_paid_exit_grace ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={printBusyId === row.session_id}
+                                  onClick={() =>
+                                    void printSessionBill(row.session_id)
+                                  }
+                                >
+                                  {printBusyId === row.session_id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <Printer className="size-4" />
+                                  )}
+                                  Receipt
+                                </Button>
+                              ) : null}
+                              {atGate && gateRequest ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={billSessionId === row.session_id}
+                                  onClick={() =>
+                                    void sendBillForSession(row, gateRequest.id)
+                                  }
+                                >
+                                  {billSessionId === row.session_id ? (
+                                    <Loader2 className="size-4 animate-spin" />
+                                  ) : (
+                                    <Banknote className="size-4" />
+                                  )}
+                                  Bill on kiosk
+                                </Button>
+                              ) : null}
+                              <Button
+                                size="sm"
+                                disabled={
+                                  !row.can_validate ||
+                                  validateBusyId === row.session_id
+                                }
+                                onClick={() => takeCashForRow(row)}
+                              >
+                                {validateBusyId === row.session_id ? (
+                                  <Loader2 className="size-4 animate-spin" />
+                                ) : (
+                                  <Wallet className="size-4" />
+                                )}
+                                {row.within_paid_exit_grace
+                                  ? "Already paid"
+                                  : gateRequest?.can_validate_payment
+                                    ? "Take cash · open"
+                                    : "Take cash"}
+                              </Button>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {!normalizedQuery &&
+                  deskRows.length > ACTIVE_PREVIEW_COUNT ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setActiveExpanded((open) => !open)}
+                    >
+                      {activeExpanded
+                        ? "Show fewer"
+                        : `Show all ${deskRows.length}`}
+                    </Button>
+                  ) : null}
+                </>
+              )}
+
+              <section className="space-y-3">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold tracking-tight">
+                        Zone gates
+                      </h2>
+                      {waitingCount > 0 ? (
+                        <Badge variant="warning" className="tabular-nums">
+                          {waitingCount} waiting
+                        </Badge>
+                      ) : null}
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium",
+                          streamStatus === "live" &&
+                            "bg-success-muted text-success-muted-foreground",
+                          streamStatus === "offline" &&
+                            "bg-destructive/15 text-destructive",
+                          (streamStatus === "connecting" ||
+                            streamStatus === "idle") &&
+                            "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        <Radio className="size-3" />
+                        {streamStatus === "live"
+                          ? "Live"
+                          : streamStatus === "connecting"
+                            ? "Connecting…"
+                            : streamStatus === "offline"
+                              ? "Reconnecting…"
+                              : "Idle"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {gateFilterReady
+                        ? "Live view of the selected exit gate"
+                        : me?.can_pick_zone
+                          ? "Select an exit gate to load that lane"
+                          : "Select an exit gate to load that lane"}
                     </p>
                   </div>
-                  {waiting > 0 ? (
-                    <Badge variant="warning" className="tabular-nums">
-                      {waiting} waiting
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline">All clear</Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleAlerts}
+                      aria-pressed={alertsOn}
+                      title={
+                        alertsOn
+                          ? "Sound and visual alerts are on"
+                          : "Click to enable alerts for new waiting vehicles"
+                      }
+                    >
+                      {alertsOn ? (
+                        <Bell className="size-4" />
+                      ) : (
+                        <BellOff className="size-4" />
+                      )}
+                      {alertsOn ? "Alerts on" : "Alerts off"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void loadGates()}
+                      disabled={gatesLoading || !hubReady}
+                    >
+                      {gatesLoading ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : null}
+                      Refresh
+                    </Button>
+                  </div>
                 </div>
-                {entries.length + exits.length === 0 ? (
-                  <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
-                    No pending payments for this gate.
-                  </p>
+
+                {!hubReady ? (
+                  <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
+                    Select a site and zone to load gates.
+                  </div>
+                ) : exitGates.length === 0 && !gatesLoading ? (
+                  <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
+                    No gates available.
+                  </div>
+                ) : !gateFilterReady ? (
+                  <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
+                    Select an exit gate to see this lane.
+                  </div>
+                ) : gatesLoading && devices.length === 0 ? (
+                  <Loader compact label="Loading gates…" />
                 ) : (
-                  <div
-                    className={cn(
-                      "grid gap-4 p-4",
-                      entries.length > 0 &&
-                        exits.length > 0 &&
-                        "lg:grid-cols-2",
+                  <div className="space-y-4">
+                    {zonesWithDevices.map(
+                      ({ zone, entries, exits, waiting }) => (
+                        <div
+                          key={zone.id}
+                          className="overflow-hidden rounded-2xl border bg-card/40 shadow-sm"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3 sm:px-5">
+                            <div className="min-w-0">
+                              <p className="font-semibold tracking-tight">
+                                {zone.site_name} · {zone.name}
+                                {selectedGateDevice
+                                  ? ` · ${gateLabel(selectedGateDevice)}`
+                                  : ""}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {zone.project_name
+                                  ? `${zone.project_name} · `
+                                  : ""}
+                                selected exit gate
+                              </p>
+                            </div>
+                            {waiting > 0 ? (
+                              <Badge variant="warning" className="tabular-nums">
+                                {waiting} waiting
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline">All clear</Badge>
+                            )}
+                          </div>
+                          {entries.length + exits.length === 0 ? (
+                            <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+                              No pending payments for this gate.
+                            </p>
+                          ) : (
+                            <div
+                              className={cn(
+                                "grid gap-4 p-4",
+                                entries.length > 0 &&
+                                  exits.length > 0 &&
+                                  "lg:grid-cols-2",
+                              )}
+                            >
+                              {entries.length > 0 ? (
+                                <GateColumn
+                                  title="Entry gates"
+                                  hint="Cars waiting to come in"
+                                  tone="entry"
+                                  devices={entries}
+                                  pendingByDevice={pendingByDevice}
+                                  freshDeviceIds={freshDeviceIds}
+                                  canDecide={canDecide}
+                                  onApprove={(row) =>
+                                    openDecision(row, "approve")
+                                  }
+                                  onDeny={(row) => openDecision(row, "deny")}
+                                  onManual={
+                                    canDecide
+                                      ? (device) => {
+                                          setManualDevice(device);
+                                          setManualPlate("");
+                                          setManualNote("");
+                                        }
+                                      : undefined
+                                  }
+                                  onValidatePayment={(row) =>
+                                    setValidateTarget({ kind: "request", row })
+                                  }
+                                  onUnmatch={(row) => void unmatchAr(row)}
+                                  onChargeAtKiosk={openChargeAtKiosk}
+                                  onCancelBill={(row) => setCancelTarget(row)}
+                                  onSendBill={(row) => void sendBill(row)}
+                                  onRefreshBill={(row) => void refreshBill(row)}
+                                  paymentActionId={paymentActionId}
+                                  unmatchBusy={arBusyId != null}
+                                  validateBusy={arBusyId != null}
+                                />
+                              ) : null}
+                              {exits.length > 0 ? (
+                                <GateColumn
+                                  title="Exit gate"
+                                  hint="Cars waiting to leave"
+                                  tone="exit"
+                                  devices={exits}
+                                  pendingByDevice={pendingByDevice}
+                                  freshDeviceIds={freshDeviceIds}
+                                  canDecide={canDecide}
+                                  onApprove={(row) =>
+                                    openDecision(row, "approve")
+                                  }
+                                  onDeny={(row) => openDecision(row, "deny")}
+                                  onManual={
+                                    canDecide
+                                      ? (device) => {
+                                          setManualDevice(device);
+                                          setManualPlate("");
+                                          setManualNote("");
+                                        }
+                                      : undefined
+                                  }
+                                  onValidatePayment={(row) =>
+                                    setValidateTarget({ kind: "request", row })
+                                  }
+                                  onUnmatch={(row) => void unmatchAr(row)}
+                                  onChargeAtKiosk={openChargeAtKiosk}
+                                  onCancelBill={(row) => setCancelTarget(row)}
+                                  onSendBill={(row) => void sendBill(row)}
+                                  onRefreshBill={(row) => void refreshBill(row)}
+                                  paymentActionId={paymentActionId}
+                                  unmatchBusy={arBusyId != null}
+                                  validateBusy={arBusyId != null}
+                                />
+                              ) : null}
+                            </div>
+                          )}
+                        </div>
+                      ),
                     )}
-                  >
-                    {entries.length > 0 ? (
-                      <GateColumn
-                        title="Entry gates"
-                        hint="Cars waiting to come in"
-                        tone="entry"
-                        devices={entries}
-                        pendingByDevice={pendingByDevice}
-                        freshDeviceIds={freshDeviceIds}
-                        canDecide={canDecide}
-                        onApprove={(row) => openDecision(row, "approve")}
-                        onDeny={(row) => openDecision(row, "deny")}
-                        onManual={
-                          canDecide
-                            ? (device) => {
-                                setManualDevice(device);
-                                setManualPlate("");
-                                setManualNote("");
-                              }
-                            : undefined
-                        }
-                        onValidatePayment={(row) =>
-                          setValidateTarget({ kind: "request", row })
-                        }
-                        onUnmatch={(row) => void unmatchAr(row)}
-                        onChargeAtKiosk={openChargeAtKiosk}
-                        onCancelBill={(row) => setCancelTarget(row)}
-                        onSendBill={(row) => void sendBill(row)}
-                        onRefreshBill={(row) => void refreshBill(row)}
-                        paymentActionId={paymentActionId}
-                        unmatchBusy={arBusyId != null}
-                        validateBusy={arBusyId != null}
-                      />
-                    ) : null}
-                    {exits.length > 0 ? (
-                      <GateColumn
-                        title="Exit gate"
-                        hint="Cars waiting to leave"
-                        tone="exit"
-                        devices={exits}
-                        pendingByDevice={pendingByDevice}
-                        freshDeviceIds={freshDeviceIds}
-                        canDecide={canDecide}
-                        onApprove={(row) => openDecision(row, "approve")}
-                        onDeny={(row) => openDecision(row, "deny")}
-                        onManual={
-                          canDecide
-                            ? (device) => {
-                                setManualDevice(device);
-                                setManualPlate("");
-                                setManualNote("");
-                              }
-                            : undefined
-                        }
-                        onValidatePayment={(row) =>
-                          setValidateTarget({ kind: "request", row })
-                        }
-                        onUnmatch={(row) => void unmatchAr(row)}
-                        onChargeAtKiosk={openChargeAtKiosk}
-                        onCancelBill={(row) => setCancelTarget(row)}
-                        onSendBill={(row) => void sendBill(row)}
-                        onRefreshBill={(row) => void refreshBill(row)}
-                        paymentActionId={paymentActionId}
-                        unmatchBusy={arBusyId != null}
-                        validateBusy={arBusyId != null}
-                      />
-                    ) : null}
                   </div>
                 )}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+              </section>
+            </AccordionContent>
+          </section>
+        </AccordionItem>
+      </Accordion>
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -3275,9 +3310,7 @@ export default function CashierHubPage() {
                         placeholder="0"
                         value={discountPercentage}
                         disabled={busy}
-                        onChange={(e) =>
-                          setDiscountPercentage(e.target.value)
-                        }
+                        onChange={(e) => setDiscountPercentage(e.target.value)}
                         className="pr-8"
                       />
                       <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
@@ -3366,9 +3399,7 @@ export default function CashierHubPage() {
               <Button
                 autoFocus
                 disabled={
-                  validateBusyId != null ||
-                  arBusyId != null ||
-                  discountBlocked
+                  validateBusyId != null || arBusyId != null || discountBlocked
                 }
                 onClick={() => {
                   if (!validateTarget) return;

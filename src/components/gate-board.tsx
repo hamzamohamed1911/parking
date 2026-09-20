@@ -83,7 +83,7 @@ export function PaymentStateBadge({ row }: { row: AccessRequest }) {
 
 export function amountsDiffer(
   a: string | null | undefined,
-  b: string | null | undefined
+  b: string | null | undefined,
 ): boolean {
   if (a == null || b == null || a === "" || b === "") return false;
   const na = Number(a);
@@ -105,7 +105,7 @@ export function elapsedLabel(fromIso: string, now: number): string {
 
 export function waitTone(
   fromIso: string,
-  now: number
+  now: number,
 ): "fresh" | "aging" | "stale" {
   const min = (now - new Date(fromIso).getTime()) / 60000;
   if (min >= 5) return "stale";
@@ -128,7 +128,7 @@ export function WaitTime({ createdAt }: { createdAt: string }) {
         tone === "fresh" && "bg-muted text-muted-foreground",
         tone === "aging" &&
           "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-        tone === "stale" && "bg-destructive/15 text-destructive"
+        tone === "stale" && "bg-destructive/15 text-destructive",
       )}
       title={`Waiting since ${formatDateTime(createdAt)}`}
     >
@@ -178,10 +178,10 @@ export function KioskStatus({ device }: { device: Device }) {
       className={cn(
         "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium",
         health === "none" && "bg-destructive/15 text-destructive",
-        health === "cold" && "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+        health === "cold" &&
+          "bg-amber-500/15 text-amber-700 dark:text-amber-300",
         health === "idle" && "bg-muted text-muted-foreground",
-        health === "active" &&
-          "bg-success-muted text-success-muted-foreground"
+        health === "active" && "bg-success-muted text-success-muted-foreground",
       )}
       title={
         last ? `Kiosk last used ${formatDateTime(last)}` : "Kiosk never used"
@@ -202,7 +202,7 @@ export function gateLabel(device: Device) {
 /** Waiting devices first (oldest first), then idle gates by label. */
 export function orderDevicesByWaiting(
   devices: Device[],
-  pendingByDevice: Record<number, AccessRequest>
+  pendingByDevice: Record<number, AccessRequest>,
 ): Device[] {
   return [...devices].sort((a, b) => {
     const aw = pendingByDevice[a.id];
@@ -266,7 +266,7 @@ export function GateCard({
             ? "border-success/40 ring-1 ring-success/20"
             : "border-warning/50 ring-1 ring-warning/25"),
         isFresh &&
-          "scale-[1.01] border-amber-500 bg-amber-500/10 ring-2 ring-amber-500/45 dark:border-amber-400 dark:bg-amber-400/10"
+          "scale-[1.01] border-amber-500 bg-amber-500/10 ring-2 ring-amber-500/45 dark:border-amber-400 dark:bg-amber-400/10",
       )}
     >
       <div
@@ -274,7 +274,7 @@ export function GateCard({
           "flex items-center justify-between gap-2 border-b px-4 py-2.5",
           isEntry
             ? "border-success/15 bg-success-muted/40"
-            : "border-warning/20 bg-warning-muted/50"
+            : "border-warning/20 bg-warning-muted/50",
         )}
       >
         <div className="flex min-w-0 items-center gap-2">
@@ -287,7 +287,7 @@ export function GateCard({
                   : "bg-warning text-warning-foreground"
                 : isEntry
                   ? "bg-success-muted text-success-muted-foreground"
-                  : "bg-warning-muted text-warning-muted-foreground"
+                  : "bg-warning-muted text-warning-muted-foreground",
             )}
           >
             <TypeIcon className="size-4" />
@@ -302,7 +302,10 @@ export function GateCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
-          <Badge variant={isEntry ? "secondary" : "outline"} className="uppercase">
+          <Badge
+            variant={isEntry ? "secondary" : "outline"}
+            className="uppercase"
+          >
             {device.type}
           </Badge>
           {!device.enabled ? <Badge variant="destructive">Off</Badge> : null}
@@ -320,7 +323,7 @@ export function GateCard({
                 ? isEntry
                   ? "text-success"
                   : "text-warning"
-                : "text-muted-foreground"
+                : "text-muted-foreground",
             )}
           />
           <span className="font-medium uppercase tracking-wide">
@@ -377,9 +380,7 @@ export function GateCard({
               </p>
               <p className="opacity-80">{formatDateTime(waiting.created_at)}</p>
             </div>
-            {canDecide &&
-            device.type === "exit" &&
-            waiting.exit_matched ? (
+            {canDecide && device.type === "exit" && waiting.exit_matched ? (
               <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5">
                 <p className="text-[11px] leading-snug text-muted-foreground">
                   OCR {waiting.exit_match_ocr || "—"} → {waiting.plate}
@@ -406,13 +407,15 @@ export function GateCard({
               <div className="space-y-2 pt-1">
                 {device.has_kiosk === false ? (
                   <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-2.5 py-1.5 text-[11px] leading-snug text-destructive">
-                    No kiosk paired — waiting for a manual decision only. No bill
-                    was sent. Use Approve without charge or Deny.
+                    No kiosk paired — waiting for a manual decision only. No
+                    bill was sent. Use Approve without charge or Deny.
                   </p>
                 ) : waiting.open_payment_intent ? (
                   <div className="space-y-2 rounded-lg border border-warning/30 bg-warning-muted/40 p-2.5">
                     <div className="flex items-baseline justify-between gap-2 text-xs">
-                      <span className="text-muted-foreground">Bill on kiosk</span>
+                      <span className="text-muted-foreground">
+                        Bill on kiosk
+                      </span>
                       <span className="font-semibold tabular-nums">
                         {waiting.open_payment_intent.amount}{" "}
                         {waiting.open_payment_intent.currency}
@@ -420,7 +423,7 @@ export function GateCard({
                     </div>
                     {amountsDiffer(
                       waiting.open_payment_intent.amount,
-                      waiting.open_payment_intent.estimated_amount
+                      waiting.open_payment_intent.estimated_amount,
                     ) ? (
                       <Button
                         size="sm"
@@ -459,7 +462,7 @@ export function GateCard({
                     </div>
                     {amountsDiffer(
                       waiting.billable_open_session.previous_amount,
-                      waiting.billable_open_session.amount
+                      waiting.billable_open_session.amount,
                     ) ? (
                       <p className="text-[11px] leading-snug text-muted-foreground">
                         Was{" "}
@@ -472,14 +475,14 @@ export function GateCard({
                         </span>{" "}
                         · session from{" "}
                         {formatDateTime(
-                          waiting.billable_open_session.start_time
+                          waiting.billable_open_session.start_time,
                         )}
                       </p>
                     ) : (
                       <p className="text-[11px] leading-snug text-muted-foreground">
                         Open session from{" "}
                         {formatDateTime(
-                          waiting.billable_open_session.start_time
+                          waiting.billable_open_session.start_time,
                         )}
                         . Put the same bill back on the kiosk.
                       </p>
@@ -554,7 +557,11 @@ export function GateCard({
                   </Button>
                 ) : null}
                 <div className="grid grid-cols-2 gap-2">
-                  <Button size="sm" className="w-full" onClick={() => onApprove(waiting)}>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={() => onApprove(waiting)}
+                  >
                     Approve
                   </Button>
                   <Button
@@ -636,10 +643,10 @@ export function GateColumn({
     <div className="min-w-0 space-y-3">
       <div
         className={cn(
-          "sticky top-0 z-10 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-opacity-80",
+          "sticky top-0 z-10 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 backdrop-blur supports-backdrop-filter:bg-opacity-80",
           tone === "entry"
             ? "border-success/20 bg-success-muted/30"
-            : "border-warning/25 bg-warning-muted/40"
+            : "border-warning/25 bg-warning-muted/40",
         )}
       >
         <div className="min-w-0">
@@ -652,7 +659,7 @@ export function GateColumn({
               "shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums",
               tone === "entry"
                 ? "bg-success text-success-foreground"
-                : "bg-warning text-warning-foreground"
+                : "bg-warning text-warning-foreground",
             )}
           >
             {waitingHere} waiting
