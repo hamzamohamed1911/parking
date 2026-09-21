@@ -363,7 +363,9 @@ function addThreeHours(stamp: string): string {
   const [ymd, hms] = stamp.split(/[ T]/);
   const [y, mo, d] = ymd.split("-").map(Number);
   const parts = hms.split(":").map(Number);
-  const date = new Date(Date.UTC(y, mo - 1, d, parts[0], parts[1], parts[2] || 0));
+  const date = new Date(
+    Date.UTC(y, mo - 1, d, parts[0], parts[1], parts[2] || 0),
+  );
   date.setUTCHours(date.getUTCHours() + 3); // TODO: remove later
   const pad = (n: number) => String(n).padStart(2, "0");
   const time = `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}${
@@ -2624,224 +2626,213 @@ export default function CashierHubPage() {
                   ) : null}
                 </>
               )}
-
-              <section className="space-y-3">
-                <div className="flex flex-wrap items-end justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-semibold tracking-tight">
-                        Zone gates
-                      </h2>
-                      {waitingCount > 0 ? (
-                        <Badge variant="warning" className="tabular-nums">
-                          {waitingCount} waiting
-                        </Badge>
-                      ) : null}
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium",
-                          streamStatus === "live" &&
-                            "bg-success-muted text-success-muted-foreground",
-                          streamStatus === "offline" &&
-                            "bg-destructive/15 text-destructive",
-                          (streamStatus === "connecting" ||
-                            streamStatus === "idle") &&
-                            "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        <Radio className="size-3" />
-                        {streamStatus === "live"
-                          ? "Live"
-                          : streamStatus === "connecting"
-                            ? "Connecting…"
-                            : streamStatus === "offline"
-                              ? "Reconnecting…"
-                              : "Idle"}
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {gateFilterReady
-                        ? "Live view of the selected exit gate"
-                        : me?.can_pick_zone
-                          ? "Select an exit gate to load that lane"
-                          : "Select an exit gate to load that lane"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={toggleAlerts}
-                      aria-pressed={alertsOn}
-                      title={
-                        alertsOn
-                          ? "Sound and visual alerts are on"
-                          : "Click to enable alerts for new waiting vehicles"
-                      }
-                    >
-                      {alertsOn ? (
-                        <Bell className="size-4" />
-                      ) : (
-                        <BellOff className="size-4" />
-                      )}
-                      {alertsOn ? "Alerts on" : "Alerts off"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void loadGates()}
-                      disabled={gatesLoading || !hubReady}
-                    >
-                      {gatesLoading ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : null}
-                      Refresh
-                    </Button>
-                  </div>
-                </div>
-
-                {!hubReady ? (
-                  <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
-                    Select a site and zone to load gates.
-                  </div>
-                ) : exitGates.length === 0 && !gatesLoading ? (
-                  <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
-                    No gates available.
-                  </div>
-                ) : !gateFilterReady ? (
-                  <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
-                    Select an exit gate to see this lane.
-                  </div>
-                ) : gatesLoading && devices.length === 0 ? (
-                  <Loader compact label="Loading gates…" />
-                ) : (
-                  <div className="space-y-4">
-                    {zonesWithDevices.map(
-                      ({ zone, entries, exits, waiting }) => (
-                        <div
-                          key={zone.id}
-                          className="overflow-hidden rounded-2xl border bg-card/40 shadow-sm"
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3 sm:px-5">
-                            <div className="min-w-0">
-                              <p className="font-semibold tracking-tight">
-                                {zone.site_name} · {zone.name}
-                                {selectedGateDevice
-                                  ? ` · ${gateLabel(selectedGateDevice)}`
-                                  : ""}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {zone.project_name
-                                  ? `${zone.project_name} · `
-                                  : ""}
-                                selected exit gate
-                              </p>
-                            </div>
-                            {waiting > 0 ? (
-                              <Badge variant="warning" className="tabular-nums">
-                                {waiting} waiting
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline">All clear</Badge>
-                            )}
-                          </div>
-                          {entries.length + exits.length === 0 ? (
-                            <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
-                              No pending payments for this gate.
-                            </p>
-                          ) : (
-                            <div
-                              className={cn(
-                                "grid gap-4 p-4",
-                                entries.length > 0 &&
-                                  exits.length > 0 &&
-                                  "lg:grid-cols-2",
-                              )}
-                            >
-                              {entries.length > 0 ? (
-                                <GateColumn
-                                  title="Entry gates"
-                                  hint="Cars waiting to come in"
-                                  tone="entry"
-                                  devices={entries}
-                                  pendingByDevice={pendingByDevice}
-                                  freshDeviceIds={freshDeviceIds}
-                                  canDecide={canDecide}
-                                  onApprove={(row) =>
-                                    openDecision(row, "approve")
-                                  }
-                                  onDeny={(row) => openDecision(row, "deny")}
-                                  onManual={
-                                    canDecide
-                                      ? (device) => {
-                                          setManualDevice(device);
-                                          setManualPlate("");
-                                          setManualNote("");
-                                        }
-                                      : undefined
-                                  }
-                                  onValidatePayment={(row) =>
-                                    setValidateTarget({ kind: "request", row })
-                                  }
-                                  onUnmatch={(row) => void unmatchAr(row)}
-                                  onChargeAtKiosk={openChargeAtKiosk}
-                                  onCancelBill={(row) => setCancelTarget(row)}
-                                  onSendBill={(row) => void sendBill(row)}
-                                  onRefreshBill={(row) => void refreshBill(row)}
-                                  paymentActionId={paymentActionId}
-                                  unmatchBusy={arBusyId != null}
-                                  validateBusy={arBusyId != null}
-                                />
-                              ) : null}
-                              {exits.length > 0 ? (
-                                <GateColumn
-                                  title="Exit gate"
-                                  hint="Cars waiting to leave"
-                                  tone="exit"
-                                  devices={exits}
-                                  pendingByDevice={pendingByDevice}
-                                  freshDeviceIds={freshDeviceIds}
-                                  canDecide={canDecide}
-                                  onApprove={(row) =>
-                                    openDecision(row, "approve")
-                                  }
-                                  onDeny={(row) => openDecision(row, "deny")}
-                                  onManual={
-                                    canDecide
-                                      ? (device) => {
-                                          setManualDevice(device);
-                                          setManualPlate("");
-                                          setManualNote("");
-                                        }
-                                      : undefined
-                                  }
-                                  onValidatePayment={(row) =>
-                                    setValidateTarget({ kind: "request", row })
-                                  }
-                                  onUnmatch={(row) => void unmatchAr(row)}
-                                  onChargeAtKiosk={openChargeAtKiosk}
-                                  onCancelBill={(row) => setCancelTarget(row)}
-                                  onSendBill={(row) => void sendBill(row)}
-                                  onRefreshBill={(row) => void refreshBill(row)}
-                                  paymentActionId={paymentActionId}
-                                  unmatchBusy={arBusyId != null}
-                                  validateBusy={arBusyId != null}
-                                />
-                              ) : null}
-                            </div>
-                          )}
-                        </div>
-                      ),
-                    )}
-                  </div>
-                )}
-              </section>
             </AccordionContent>
           </section>
         </AccordionItem>
       </Accordion>
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold tracking-tight">
+                Zone gates
+              </h2>
+              {waitingCount > 0 ? (
+                <Badge variant="warning" className="tabular-nums">
+                  {waitingCount} waiting
+                </Badge>
+              ) : null}
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium",
+                  streamStatus === "live" &&
+                    "bg-success-muted text-success-muted-foreground",
+                  streamStatus === "offline" &&
+                    "bg-destructive/15 text-destructive",
+                  (streamStatus === "connecting" || streamStatus === "idle") &&
+                    "bg-muted text-muted-foreground",
+                )}
+              >
+                <Radio className="size-3" />
+                {streamStatus === "live"
+                  ? "Live"
+                  : streamStatus === "connecting"
+                    ? "Connecting…"
+                    : streamStatus === "offline"
+                      ? "Reconnecting…"
+                      : "Idle"}
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {gateFilterReady
+                ? "Live view of the selected exit gate"
+                : me?.can_pick_zone
+                  ? "Select an exit gate to load that lane"
+                  : "Select an exit gate to load that lane"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={toggleAlerts}
+              aria-pressed={alertsOn}
+              title={
+                alertsOn
+                  ? "Sound and visual alerts are on"
+                  : "Click to enable alerts for new waiting vehicles"
+              }
+            >
+              {alertsOn ? (
+                <Bell className="size-4" />
+              ) : (
+                <BellOff className="size-4" />
+              )}
+              {alertsOn ? "Alerts on" : "Alerts off"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadGates()}
+              disabled={gatesLoading || !hubReady}
+            >
+              {gatesLoading ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : null}
+              Refresh
+            </Button>
+          </div>
+        </div>
 
+        {!hubReady ? (
+          <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
+            Select a site and zone to load gates.
+          </div>
+        ) : exitGates.length === 0 && !gatesLoading ? (
+          <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
+            No gates available.
+          </div>
+        ) : !gateFilterReady ? (
+          <div className="rounded-2xl border bg-card px-5 py-10 text-center text-sm text-muted-foreground shadow-sm">
+            Select an exit gate to see this lane.
+          </div>
+        ) : gatesLoading && devices.length === 0 ? (
+          <Loader compact label="Loading gates…" />
+        ) : (
+          <div className="space-y-4">
+            {zonesWithDevices.map(({ zone, entries, exits, waiting }) => (
+              <div
+                key={zone.id}
+                className="overflow-hidden rounded-2xl border bg-card/40 shadow-sm"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3 sm:px-5">
+                  <div className="min-w-0">
+                    <p className="font-semibold tracking-tight">
+                      {zone.site_name} · {zone.name}
+                      {selectedGateDevice
+                        ? ` · ${gateLabel(selectedGateDevice)}`
+                        : ""}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {zone.project_name ? `${zone.project_name} · ` : ""}
+                      selected exit gate
+                    </p>
+                  </div>
+                  {waiting > 0 ? (
+                    <Badge variant="warning" className="tabular-nums">
+                      {waiting} waiting
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">All clear</Badge>
+                  )}
+                </div>
+                {entries.length + exits.length === 0 ? (
+                  <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+                    No pending payments for this gate.
+                  </p>
+                ) : (
+                  <div
+                    className={cn(
+                      "grid gap-4 p-4",
+                      entries.length > 0 &&
+                        exits.length > 0 &&
+                        "lg:grid-cols-2",
+                    )}
+                  >
+                    {entries.length > 0 ? (
+                      <GateColumn
+                        title="Entry gates"
+                        hint="Cars waiting to come in"
+                        tone="entry"
+                        devices={entries}
+                        pendingByDevice={pendingByDevice}
+                        freshDeviceIds={freshDeviceIds}
+                        canDecide={canDecide}
+                        onApprove={(row) => openDecision(row, "approve")}
+                        onDeny={(row) => openDecision(row, "deny")}
+                        onManual={
+                          canDecide
+                            ? (device) => {
+                                setManualDevice(device);
+                                setManualPlate("");
+                                setManualNote("");
+                              }
+                            : undefined
+                        }
+                        onValidatePayment={(row) =>
+                          setValidateTarget({ kind: "request", row })
+                        }
+                        onUnmatch={(row) => void unmatchAr(row)}
+                        onChargeAtKiosk={openChargeAtKiosk}
+                        onCancelBill={(row) => setCancelTarget(row)}
+                        onSendBill={(row) => void sendBill(row)}
+                        onRefreshBill={(row) => void refreshBill(row)}
+                        paymentActionId={paymentActionId}
+                        unmatchBusy={arBusyId != null}
+                        validateBusy={arBusyId != null}
+                      />
+                    ) : null}
+                    {exits.length > 0 ? (
+                      <GateColumn
+                        title="Exit gate"
+                        hint="Cars waiting to leave"
+                        tone="exit"
+                        devices={exits}
+                        pendingByDevice={pendingByDevice}
+                        freshDeviceIds={freshDeviceIds}
+                        canDecide={canDecide}
+                        onApprove={(row) => openDecision(row, "approve")}
+                        onDeny={(row) => openDecision(row, "deny")}
+                        onManual={
+                          canDecide
+                            ? (device) => {
+                                setManualDevice(device);
+                                setManualPlate("");
+                                setManualNote("");
+                              }
+                            : undefined
+                        }
+                        onValidatePayment={(row) =>
+                          setValidateTarget({ kind: "request", row })
+                        }
+                        onUnmatch={(row) => void unmatchAr(row)}
+                        onChargeAtKiosk={openChargeAtKiosk}
+                        onCancelBill={(row) => setCancelTarget(row)}
+                        onSendBill={(row) => void sendBill(row)}
+                        onRefreshBill={(row) => void refreshBill(row)}
+                        paymentActionId={paymentActionId}
+                        unmatchBusy={arBusyId != null}
+                        validateBusy={arBusyId != null}
+                      />
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
