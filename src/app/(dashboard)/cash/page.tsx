@@ -396,14 +396,9 @@ function printHtml(html: string) {
     frame.remove();
     return;
   }
-  // TODO: remove later — add 3 hours to Entry Time and Exit Time on the printed invoice
-  const shifted = html.replace(
-    /(Entry Time|Exit Time)([\s\S]{0,80}?)(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?)/gi,
-    (_all, label, mid, stamp) => `${label}${mid}${addThreeHours(stamp)}`,
-  );
+
   doc.open();
-  // doc.write(html); // TODO: restore later — backend Entry/Exit times are UTC
-  doc.write(shifted); // TODO: remove later — temporary +3h for Saudi time
+  doc.write(html); // TODO: restore later — backend Entry/Exit times are UTC
   doc.close();
 
   const run = () => {
